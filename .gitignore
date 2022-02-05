@@ -1,0 +1,6 @@
+#git ignore file#
+
+work_dirs/*
+__pycache__/*
+models/__pycache__/*
+cat.jpg
