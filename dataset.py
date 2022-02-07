@@ -15,7 +15,8 @@ class MayoDataset(Dataset):
     def __init__(self, file_list, csv_dir, transform='train', norm=False):
         self.file_list = file_list
         self.transform = transform
-        self.csv_dir = csv_dir
+        self.labels = pd.read_csv(csv_dir)
+        self.labels.index = self.labels['img']
         self.norm = norm
 
     def __len__(self):
@@ -26,15 +27,11 @@ class MayoDataset(Dataset):
         # read image
         img_path = self.file_list[idx]
         img = imageio.imread(img_path)
-        # convert image channel
-        img = np.stack((img,)*3, axis=-1)
 
         # get label
-        label_df = pd.read_csv(self.csv_dir)
-        # label_df.index = label_df['img']
         pid, lv, fid = img_path.split('/')[-3], img_path.split('/')[-2], img_path.split('/')[-1][:-5]
         imgname = '{}_{}_{}'.format(pid, lv, fid)
-        mean = label_df.loc[imgname].values[1]
+        mean = self.labels.loc[imgname].values[1]
 
         # transform
         transformer = transforms.Compose([

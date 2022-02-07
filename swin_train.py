@@ -39,18 +39,19 @@ seed_everything(seed)
 device = 'cuda'
 
 # load data
-train_pid = ['L096', 'L291', 'L310']
+train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
 val_pid = ['L333']
 
-train_label_dir = '../../data/nimg-train/mayo_train.csv'
-val_label_dir = '../../data/nimg-train/mayo_val.csv'
+# train_label_dir = '../../data/nimg-train/mayo_train.csv'
+# val_label_dir = '../../data/nimg-train/mayo_val.csv'
+label_dir = '../../data/nimg-train-3channel/mayo_total.csv'
 
 temp_train_list = []
 for pid in train_pid:
-    temp_train_list.append(glob('../../data/nimg-train/{}/*/*.tiff'.format(pid)))
+    temp_train_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
 temp_val_list = []
 for pid in val_pid:
-    temp_val_list.append(glob('../../data/nimg-train/{}/*/*.tiff'.format(pid)))
+    temp_val_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
 
 train_list, val_list = [], []
 for i in range(len(temp_train_list)):
@@ -62,9 +63,9 @@ val_list = sorted(val_list)
 # test_list = sorted(glob('../../data/nimg/*/*/*.tiff')) # L506 & L067
 
 # load datasets
-train_data = MayoDataset(train_list, train_label_dir, transform='train', norm=args.norm)
+train_data = MayoDataset(train_list, label_dir, transform='train', norm=args.norm)
 train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True)
-val_data = MayoDataset(val_list, val_label_dir, transform='val', norm=args.norm)
+val_data = MayoDataset(val_list, label_dir, transform='val', norm=args.norm)
 val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False)
 
 # set model
@@ -73,7 +74,7 @@ model = model.to(device)
 
 # transfer weights
 if args.transfer == 'detection':
-    checkpoint = torch.load('/data/wonkyong/workspace/vit-pytorch/work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:0')
+    checkpoint = torch.load('work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:0')
 
     del checkpoint['meta']
     del checkpoint['optimizer']
@@ -108,7 +109,7 @@ optimizer = optim.Adam(model.parameters(), lr=lr)
 if args.scheduler == 'step':
     scheduler = StepLR(optimizer, step_size=1000, gamma=gamma)
 elif args.scheduler == 'cosine':
-    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=100, T_mult=1, eta_max=lr,  T_up=10, gamma=0.7)
+    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=100, T_mult=1, eta_max=lr,  T_up=10, gamma=0.5)
 
 best_plcc = 0
 best_epoch = 0
@@ -185,5 +186,5 @@ for epoch in range(epochs):
     print('Best PLCC epoch so far: ', best_epoch)
     print('lr: ', scheduler.get_lr())
 
-    if epoch >= 200:
+    if epoch >= 100:
         scheduler.step()
