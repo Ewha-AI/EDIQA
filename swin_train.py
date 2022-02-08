@@ -26,6 +26,8 @@ parser.add_argument('--norm', action='store_true', help='whether to normalize im
 parser.add_argument('--transfer', type=str, default=None, help='whether to trasfer weights|Options: detection, imagenet, none')
 parser.add_argument('--scheduler', type=str, default=None, help='whether to trasfer weights|Options: step, cosince, none')
 parser.add_argument('--batch_size', type=int, default=128, help='batch size')
+parser.add_argument('--val_pid', type=str, default='L333', help='validation pid')
+parser.add_argument('--gid', type=int, default=0, help='GPU ids')
 args = parser.parse_args()
 
 # Training settings
@@ -36,11 +38,14 @@ gamma = 0.7
 seed = 42
 
 seed_everything(seed)
-device = 'cuda'
+device = 'cuda:{}'.format(args.gid)
 
 # load data
-train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
-val_pid = ['L333']
+total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286', 'L333']
+val_pid = [args.val_pid]
+train_pid = [pid for pid in total_pid if pid not in val_pid]
+# train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
+# val_pid = ['L333']
 
 # train_label_dir = '../../data/nimg-train/mayo_train.csv'
 # val_label_dir = '../../data/nimg-train/mayo_val.csv'
@@ -74,7 +79,7 @@ model = model.to(device)
 
 # transfer weights
 if args.transfer == 'detection':
-    checkpoint = torch.load('work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:0')
+    checkpoint = torch.load('work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
 
     del checkpoint['meta']
     del checkpoint['optimizer']

@@ -65,7 +65,8 @@ def plot_logs(logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col
                 axs[j].plot(coco_eval, c=color)
             else:
                 df.interpolate().ewm(com=ewm_col).mean().plot(
-                    y=[f'{field}', f'val_{field}'],
+                    # y=[f'{field}', f'val_{field}'],
+                    y=[f'{field}'],
                     ax=axs[j],
                     color=[color] * 2,
                     style=['-', '--']
@@ -112,11 +113,12 @@ def plot_precision_recall(files, naming_scheme='iter'):
 
 
 if __name__=='__main__':
-    log_directory = [Path('work_dirs/temp8')]
+    log_directory = [Path('work_dirs/temp9')]
 
     fields_of_interest = (
         'loss',
-        'plcc'
+        'plcc',
+        'lr'
         )
 
     plot_logs(log_directory,

@@ -546,13 +546,13 @@ class SwinTransformer(nn.Module):
         self.norm3 = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         # self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
-        # self.head = nn.Linear(self.num_features, 1)
-        self.head = nn.Sequential(
-            nn.Linear(self.num_features, int(self.num_features/2)),
-            nn.GELU(),
-            nn.Dropout(0.),
-            nn.Linear(int(self.num_features/2), 1)
-        )
+        self.head = nn.Linear(self.num_features, 1)
+        # self.head = nn.Sequential(
+        #     nn.Linear(self.num_features, int(self.num_features/2)),
+        #     nn.GELU(),
+        #     nn.Dropout(0.),
+        #     nn.Linear(int(self.num_features/2), 1)
+        # )
 
         self.apply(self._init_weights)
 
