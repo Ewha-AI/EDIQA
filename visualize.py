@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path, PurePath
 
 
-def plot_logs(logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col=0, log_name='logs.txt'):
+def plot_logs(log_folder, logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col=0, log_name='logs.txt'):
     '''
     Function to plot specific fields from training log(s). Plots both training and test results.
 
@@ -65,8 +65,8 @@ def plot_logs(logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col
                 axs[j].plot(coco_eval, c=color)
             else:
                 df.interpolate().ewm(com=ewm_col).mean().plot(
-                    # y=[f'{field}', f'val_{field}'],
-                    y=[f'{field}'],
+                    y=[f'{field}', f'val_{field}'],
+                    # y=[f'{field}'],
                     ax=axs[j],
                     color=[color] * 2,
                     style=['-', '--']
@@ -75,7 +75,7 @@ def plot_logs(logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col
         ax.legend([Path(p).name for p in logs])
         ax.set_title(field)
 
-    plt.savefig('test3.png')
+    plt.savefig('{}.png'.format(log_folder))
 
 
 def plot_precision_recall(files, naming_scheme='iter'):
@@ -113,13 +113,12 @@ def plot_precision_recall(files, naming_scheme='iter'):
 
 
 if __name__=='__main__':
-    log_directory = [Path('work_dirs/temp9')]
+    log_name = 'pipal3'
+    log_directory = [Path('work_dirs/{}'.format(log_name))]
 
     fields_of_interest = (
         'loss',
         'plcc',
-        'lr'
         )
-
-    plot_logs(log_directory,
+    plot_logs(log_name, log_directory,
             fields_of_interest)

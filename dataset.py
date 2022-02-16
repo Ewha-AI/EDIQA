@@ -110,3 +110,32 @@ class MayoDistDataset(Dataset):
 
         # return img, label, mean
         return img, mean
+
+
+class PIPALDataset(Dataset):
+    def __init__(self, file_list, csv_dir, transform=None, norm=False):
+        self.file_list = file_list
+        self.transform = transform
+        self.labels = pd.read_csv(csv_dir)
+        self.labels.index = self.labels['dst_img']
+        self.norm = norm
+
+    def __len__(self):
+        self.filelength = len(self.file_list)
+        return self.filelength
+
+    def __getitem__(self, idx):
+        # read image
+        img_path = self.file_list[idx]
+        img = Image.open(img_path)
+
+        # get label
+        imgname = img_path.split('/')[-1]
+        mean = self.labels.loc[imgname].values[-1]
+        dist = self.labels.loc[imgname].values[0]
+
+        # transform image
+        if self.transform != None:
+            img = self.transform(img)
+
+        return img, mean
