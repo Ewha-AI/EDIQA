@@ -6,9 +6,12 @@ from torch.optim.lr_scheduler import StepLR
 import torchvision
 from torchvision import datasets, models, transforms
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 from utils import seed_everything, get_distribution, CosineAnnealingWarmUpRestarts, distribution_to_score, calculate_plcc
-from models.SwinT_modified import SwinTransformer
+from models.swin_transformer_aggregation_per_stage import SwinTransformer
+# from models.swin_transformer import SwinTransformer
+from models.ViT import ViT
 from dataset import PIPALDataset
 from glob import glob
 import pandas as pd
@@ -28,12 +31,15 @@ parser.add_argument('--scheduler', type=str, default=None, help='whether to tras
 parser.add_argument('--batch_size', type=int, default=128, help='batch size')
 parser.add_argument('--val_pid', type=str, default='L333', help='validation pid')
 parser.add_argument('--gid', type=int, default=0, help='GPU ids')
+parser.add_argument('--feature_num', type=int, default=-1, help='feature vector numbers|Options: -1, 4, 12')
+parser.add_argument('--mlp_head', type=int, default=None, help='mlp head')
+parser.add_argument('--lr', type=float, default=1e-5, help='learning rate')
 args = parser.parse_args()
 
 # Training settings
 batch_size = args.batch_size
 epochs = 500
-lr = 1e-4
+lr = args.lr
 gamma = 0.7
 seed = 42
 
@@ -51,14 +57,15 @@ val_list = sorted(glob('../../data/pipal/test/dst_imgs/*.bmp'))
 # transform image
 data_transforms = {
     'train': transforms.Compose([
-        transforms.RandomResizedCrop(224),
+        # transforms.RandomResizedCrop(224),
+        transforms.Resize(224),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
     'val': transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(224),
+        # transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
@@ -66,12 +73,24 @@ data_transforms = {
 
 # load datasets
 train_data = PIPALDataset(train_list, train_label_dir, transform=data_transforms['train'], norm=args.norm)
-train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=12)
 val_data = PIPALDataset(val_list, val_label_dir, transform=data_transforms['val'], norm=args.norm)
-val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False)
+val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=12)
 
 # set model
-model = SwinTransformer()
+# model = SwinTransformer(feature_num=args.feature_num, mlp_head = args.mlp_head)
+model = SwinTransformer(num_classes=1)
+# model = ViT(
+#         image_size = 512,
+#         patch_size = 32,
+#         num_classes=10,
+#         dim = 32,
+#         depth = 2, # encoder depth
+#         heads = 8,
+#         mlp_dim = 64,
+#         dropout = 0.1,
+#         emb_dropout = 0.1
+#     )
 model = model.to(device)
 
 # transfer weights
@@ -90,7 +109,7 @@ if args.transfer == 'detection':
 
     model.load_state_dict(checkpoint['state_dict'], strict=False)
 elif args.transfer == 'imagenet':
-    checkpoint = torch.load('./work_dirs/swin_tiny_patch4_window7_224.pth')
+    checkpoint = torch.load('./work_dirs/swin_tiny_patch4_window7_224.pth', map_location='cuda:{}'.format(args.gid))
     
     del checkpoint['model']['head.bias']
     del checkpoint['model']['head.weight']   
@@ -131,7 +150,9 @@ for epoch in range(epochs):
         # label = label.to(device)
         mean = mean.to(device).double()
         
-        output = model(data).double()
+        output = model(data).double().to(device)
+        # output, xs = model(data)
+        # output = output.double().to(device)
         mean = rearrange(mean, 'b -> b 1')
         loss = criterion(output, mean)
 
@@ -141,6 +162,9 @@ for epoch in range(epochs):
 
         gt = mean
         plcc = calculate_plcc(output, gt)
+        # kld = kl_divergence(output, gt)
+        # print(kld)
+        # exit()
         epoch_plcc += plcc / len(train_loader)
         epoch_loss += loss / len(train_loader)
         # acc = (output.argmax(dim=1) == label).float().mean()
@@ -157,7 +181,17 @@ for epoch in range(epochs):
             mean = rearrange(mean, 'b -> b 1')
 
             val_output = model(data)
+            # val_output, xs = model(data)
+            val_output = val_output.double().to(device)
+
             val_loss = criterion(val_output, mean)
+
+            # for i in range(4):
+            #     x = xs[i]
+            #     print(F.kl_div(F.log_softmax(x[i], 0), F.softmax(x[i], 0), reduction='none').mean())
+            #     print(F.kl_div(F.log_softmax(x[0][i], 0), F.softmax(x[i], 0), reduction='none').mean())
+            #     print(F.kl_div(F.log_softmax(x[i], 0), F.softmax(x[i], 0), reduction='none').mean())
+            #     print(F.kl_div(F.log_softmax(x[i], 0), F.softmax(x[i], 0), reduction='none').mean())
 
             gt = mean
             val_plcc = calculate_plcc(val_output, gt)

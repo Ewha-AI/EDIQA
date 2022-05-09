@@ -9,6 +9,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+import functools
 from pathlib import Path, PurePath
 
 
@@ -53,6 +54,9 @@ def plot_logs(log_folder, logs, fields=('class_error', 'loss_bbox_unscaled', 'mA
 
     # load log file(s) and plot
     dfs = [pd.read_json(Path(p) / log_name, lines=True) for p in logs]
+    # dfs = [dfs[0][:]]
+    # print(dfs)
+    # exit()
 
     fig, axs = plt.subplots(ncols=len(fields), figsize=(16, 5))
 
@@ -65,16 +69,95 @@ def plot_logs(log_folder, logs, fields=('class_error', 'loss_bbox_unscaled', 'mA
                 axs[j].plot(coco_eval, c=color)
             else:
                 df.interpolate().ewm(com=ewm_col).mean().plot(
-                    y=[f'{field}', f'val_{field}'],
+                    y=[f'train_{field}', f'val_{field}'],
                     # y=[f'{field}'],
                     ax=axs[j],
                     color=[color] * 2,
                     style=['-', '--']
                 )
+
     for ax, field in zip(axs, fields):
         ax.legend([Path(p).name for p in logs])
         ax.set_title(field)
+        ax.grid(True)
 
+    plt.savefig('{}.png'.format(log_folder))
+
+def plot_comparison(log_folder, logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col=0, log_name='logs.txt'):
+    '''
+    Function to plot specific fields from training log(s). Plots both training and test results.
+
+    :: Inputs - logs = list containing Path objects, each pointing to individual dir with a log file
+              - fields = which results to plot from each log file - plots both training and test for each field.
+              - ewm_col = optional, which column to use as the exponential weighted smoothing of the plots
+              - log_name = optional, name of log file if different than default 'log.txt'.
+
+    :: Outputs - matplotlib plots of results in fields, color coded for each log file.
+               - solid lines are training results, dashed lines are test results.
+
+    '''
+    func_name = "plot_utils.py::plot_logs"
+
+    # verify logs is a list of Paths (list[Paths]) or single Pathlib object Path,
+    # convert single Path to list to avoid 'not iterable' error
+
+    if not isinstance(logs, list):
+        if isinstance(logs, PurePath):
+            logs = [logs]
+            print(f"{func_name} info: logs param expects a list argument, converted to list[Path].")
+        else:
+            raise ValueError(f"{func_name} - invalid argument for logs parameter.\n \
+            Expect list[Path] or single Path obj, received {type(logs)}")
+
+    # Quality checks - verify valid dir(s), that every item in list is Path object, and that log_name exists in each dir
+    for i, dir in enumerate(logs):
+        if not isinstance(dir, PurePath):
+            raise ValueError(f"{func_name} - non-Path object in logs argument of {type(dir)}: \n{dir}")
+        if not dir.exists():
+            raise ValueError(f"{func_name} - invalid directory in logs argument:\n{dir}")
+        # verify log_name exists
+        fn = Path(dir / log_name)
+        if not fn.exists():
+            print(f"-> missing {log_name}.  Have you gotten to Epoch 1 in training?")
+            print(f"--> full path of missing log file: {fn}")
+            return
+
+    # load log file(s) and plot
+    dfs_dict = {}
+    for i in range(len(logs)):
+        dfs_dict[i] = [pd.read_json(Path(logs[i]) / log_name, lines=True)]
+        col = dfs_dict[i][0].columns
+        col = ['{}_{}'.format(logs[i], col[j]) if col[j] != 'Epoch' else col[j] for j in range(len(col))]
+        dfs_dict[i][0].columns = col
+        # dfs = [dfs[0][:]]
+        # print(dfs)
+        # exit()
+
+    # concat all dfs
+    dfs = functools.reduce(lambda left,right: pd.merge(left,right,on='Epoch'), [dfs_dict[i][0] for i in range(len(logs))])
+
+    fig, axs = plt.subplots(ncols=len(fields), figsize=(16, 5))
+
+    print(['{}_val_{}'.format(logs[i], 1) for i in range(len(logs))])
+    for df, color in zip([dfs], sns.color_palette(n_colors=len(logs))):
+        color = sns.color_palette(n_colors=len(logs))
+        for j, field in enumerate(fields):
+            df.plot(
+                # y=[f'{field}', f'val_{field}'],
+                y=['{}_val_{}'.format(logs[i], field) for i in range(len(logs))],
+                ax=axs[j],
+                color=color,
+                style=['-'] * 4
+            )
+
+    for ax, field in zip(axs, fields):
+        ax.legend([Path(p).name for p in logs])
+        ax.set_title(field)
+        ax.grid(True)
+        
+
+    # plt.legend(loc='lower left', bbox_to_anchor=(0, 1.02, 1, 0.2))
+    # plt.tight_layout()
     plt.savefig('{}.png'.format(log_folder))
 
 
@@ -113,12 +196,27 @@ def plot_precision_recall(files, naming_scheme='iter'):
 
 
 if __name__=='__main__':
-    log_name = 'pipal3'
-    log_directory = [Path('work_dirs/{}'.format(log_name))]
 
+    names = ['final_no_aug_mae_cosine', 'final_horizontal_aug_mae_cosine', 'train_random1_val_center4_vhflip_mae_cosine']
+
+    log_directory = []
+    for i in names:
+        log_directory.append(Path('work_dirs/{}'.format(i)))
     fields_of_interest = (
         'loss',
-        'plcc',
+        'plcc'
         )
-    plot_logs(log_name, log_directory,
+    plot_comparison('comp', log_directory,
             fields_of_interest)
+    exit()
+
+    for n in names:
+        log_name = n
+        log_directory = [Path('work_dirs/{}'.format(log_name))]
+
+        fields_of_interest = (
+            # 'loss',
+            'plcc'
+            )
+        plot_logs(log_name, log_directory,
+                fields_of_interest)

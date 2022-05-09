@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR, CosineAnnealingWarmUpRestarts
+from torch.optim.lr_scheduler import StepLR
 
 import torchvision
 from torchvision import datasets, models, transforms
 from torch.utils.data import DataLoader
 
-from utils import seed_everything, get_distribution, distribution_to_score, calculate_plcc
+from utils import seed_everything, get_distribution, CosineAnnealingWarmUpRestarts, distribution_to_score, calculate_plcc
 from models.build import build_model
-from dataset import MayoDataset
+from dataset import MayoDataset, MayoPatchDataset, MayoRandomPatchDataset, MayoPatchDataset2
 from glob import glob
 import pandas as pd
 from tqdm import tqdm
@@ -94,12 +94,19 @@ val_list = sorted(val_list)
 test_list = sorted(glob('../../data/nimg-test-3channel/*/*/*.tiff')) # L506 & L067
 
 # load datasets
-train_data = MayoDataset(train_list, label_dir, transform='train', norm=False)
-train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=1)
-val_data = MayoDataset(val_list, label_dir, transform='val', norm=False)
-val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=1)
-test_data = MayoDataset(test_list, test_label_dir, transform='val', norm=False)
-test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False, num_workers=1)
+# train_data = MayoDataset(train_list, label_dir, transform='train', norm=False)
+# train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=4)
+# val_data = MayoDataset(val_list, label_dir, transform='val', norm=False)
+# val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=4)
+# test_data = MayoDataset(test_list, test_label_dir, transform='val', norm=False)
+# test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False, num_workers=4)
+# patch
+train_data = MayoPatchDataset(train_list, label_dir, transform='train', norm=False)
+train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=4)
+val_data = MayoPatchDataset(val_list, label_dir, transform='val', norm=False)
+val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=4)
+test_data = MayoPatchDataset(test_list, test_label_dir, transform='val', norm=False)
+test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False, num_workers=4)
 
 # set model
 # model = SwinTransformer(feature_num=args.feature_num, mlp_head = args.mlp_head)
@@ -146,11 +153,43 @@ if args.transfer == 'detection':
         if '.conv.' in key:
             checkpoint['state_dict'][key.replace('.conv.', '.')] = checkpoint['state_dict'].pop(key)
 
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    model.load_state_dict(checkpoint['state_dict'], strict=True)
     
     # for name, param in model[0].named_parameters():
     #     print(name, param.requires_grad)
     # exit()
+
+# detection for conv and swin
+if args.transfer == 'swin_conv_detection':
+    swin_checkpoint = torch.load('../Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
+    conv_checkpoint = torch.load('/data1/wonkyong/workspace/Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_convnext/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
+
+    del swin_checkpoint['meta']
+    del swin_checkpoint['optimizer']
+    del conv_checkpoint['meta']
+    del conv_checkpoint['optimizer']
+
+    s_layers = [c for c in swin_checkpoint['state_dict'].keys() if 'backbone' not in c]
+    c_layers = [c for c in conv_checkpoint['state_dict'].keys() if 'backbone' not in c]
+
+    for l in s_layers:
+        del swin_checkpoint['state_dict'][l]
+    for l in c_layers:
+        del conv_checkpoint['state_dict'][l]
+
+    print(conv_checkpoint.keys())
+
+    for key in list(swin_checkpoint['state_dict'].keys()):
+        if 'backbone' in key:
+            swin_checkpoint['state_dict'][key.replace('backbone.', 'module.0.swin_transformer.')] = swin_checkpoint['state_dict'].pop(key)
+
+    for key in list(conv_checkpoint['state_dict'].keys()):
+        if 'backbone' in key:
+            conv_checkpoint['state_dict'][key.replace('backbone.', 'module.0.convnext.')] = conv_checkpoint['state_dict'].pop(key)
+
+    
+    swin_checkpoint['state_dict'].update(conv_checkpoint['state_dict'])
+    model.load_state_dict(swin_checkpoint['state_dict'], strict=False)
 
 elif args.transfer == 'imagenet':
     checkpoint = torch.load('/data/wonkyong/workspace/vit-pytorch/work_dirs/swin_tiny_patch4_window7_224.pth')
@@ -183,12 +222,21 @@ for epoch in range(start_epoch, epochs):
     for data, mean in tqdm(train_loader, desc='train'):
         # data = data.to(device)
         # mean = mean.to(device).double()
-        data = data.cuda()
         mean = mean.cuda()
+        mean = rearrange(mean, 'b -> b 1').type(torch.float64) #.double()
         
-        output = model(data).double()
-        mean = rearrange(mean, 'b -> b 1')
-        loss = criterion(output, mean)# + rank_loss(output, mean, len(output))
+        train_score = torch.zeros(size=mean.shape).cuda().type(torch.float64)
+        for img in data:
+            img = img.cuda()
+            output = model(img)
+            train_score += output
+            # print(output)
+
+        # print(mean.dtype, train_score.dtype)
+        # exit()
+
+        train_score = train_score / len(data)
+        loss = criterion(train_score, mean) # + rank_loss(output, mean, len(output))
         # print(loss)
         # print(torch.is_tensor(loss))
         # print(int(loss[0]))
@@ -199,7 +247,7 @@ for epoch in range(start_epoch, epochs):
         optimizer.step()
 
         gt = mean
-        plcc = calculate_plcc(output, gt)
+        plcc = calculate_plcc(train_score, gt)
         epoch_plcc += plcc / len(train_loader)
         epoch_loss += loss / len(train_loader)
         # acc = (output.argmax(dim=1) == label).float().mean()
@@ -213,15 +261,19 @@ for epoch in range(start_epoch, epochs):
         for data, mean in tqdm(val_loader, desc='validation'):
             # data = data.to(device)
             # mean = mean.to(device)
-            data = data.cuda()
             mean = mean.cuda()
             mean = rearrange(mean, 'b -> b 1')
 
-            val_output = model(data)
-            val_loss = criterion(val_output, mean)# + rank_loss(output, mean, len(output))
+            val_score = torch.zeros(size=mean.shape).cuda()
+            for img in data:
+                img = img.cuda()
+                val_output = model(img)
+                val_score += val_output
 
-            gt = mean
-            val_plcc = calculate_plcc(val_output, gt)
+            val_score = val_score / len(data)
+            val_loss = criterion(val_score, mean)# + rank_loss(output, mean, len(output))
+
+            val_plcc = calculate_plcc(val_score, mean)
             epoch_val_plcc += val_plcc / len(val_loader)
             epoch_val_loss += val_loss / len(val_loader)
 
@@ -232,14 +284,17 @@ for epoch in range(start_epoch, epochs):
         for data, mean in tqdm(test_loader, desc='test'):
             # data = data.to(device)
             # mean = mean.to(device)
-            data = data.cuda()
             mean = mean.cuda()
             mean = rearrange(mean, 'b -> b 1')
 
-            test_output = model(data)
-            gt = mean
+            test_score = torch.zeros(size=mean.shape).cuda()
+            for img in data:
+                img = img.cuda()
+                test_output = model(img)
+                test_score += test_output
+            test_score = test_score / len(data)
 
-            test_plcc = calculate_plcc(test_output, gt)
+            test_plcc = calculate_plcc(test_score, mean)
             epoch_test_plcc += test_plcc / len(test_loader)
 
     # create work dirs
@@ -257,9 +312,9 @@ for epoch in range(start_epoch, epochs):
     torch.save(model.state_dict(), work_dir+'latest.pth')
 
     # convert loss to int
-    if torch.is_tensor(loss):
-        epoch_loss = float(epoch_loss[0])
-        epoch_val_loss = float(epoch_val_loss[0])
+    # if torch.is_tensor(loss):
+    #     epoch_loss = float(epoch_loss[0])
+    #     epoch_val_loss = float(epoch_val_loss[0])
 
     try:
         print(

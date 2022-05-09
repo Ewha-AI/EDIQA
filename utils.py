@@ -8,6 +8,7 @@ from scipy.stats import pearsonr
 import math
 import torch
 from torch.optim.lr_scheduler import _LRScheduler
+from math import log2
 
 
 def seed_everything(seed):
@@ -120,3 +121,9 @@ class CosineAnnealingWarmUpRestarts(_LRScheduler):
         self.last_epoch = math.floor(epoch)
         for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
             param_group['lr'] = lr
+
+
+
+# calculate the kl divergence
+def kl_divergence(p, q):
+	return sum([p[i] * log2(p[i]/q[i]) for i in range(len(p))])

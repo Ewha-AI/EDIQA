@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from utils import calculate_plcc
 from models.SwinT_modified2 import SwinTransformer
-from dataset import MayoDataset
+from dataset import MayoDataset, MayoRandomPatchDataset2
 from glob import glob
 import pandas as pd
 from tqdm import tqdm
