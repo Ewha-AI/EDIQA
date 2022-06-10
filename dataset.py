@@ -42,41 +42,45 @@ class MayoDataset(Dataset):
         ])
 
         # transform image
-        if self.transform is 'train':
-            # img = cv2.resize(img, (224, 224))
+        if self.transform == 'train':
+            img = cv2.resize(img, (224, 224))
             # center crop
             # img = img[144: 144+224, 144: 144+224]
             # random crop
             # x = random.randint(100, 189)
             # y = random.randint(100, 189)
-            x = random.randint(0, 288)
-            y = random.randint(0, 288)
-            img = img[x: x+224, y: y+224]
+            # x = random.randint(0, 288)
+            # y = random.randint(0, 288)
+            # img = img[x: x+224, y: y+224]
             # imageio.imsave('random_crop_test_{}_{}.png'.format(x, y), img)
             if random.random() >= 0.5:
                 img = np.flip(img, 1)
+            if random.random() >= 0.5:
+                img = np.flip(img, 0)
             img = torch.from_numpy(img.copy())
             img = rearrange(img, 'h w c -> c h w')
         else:
-            # img = cv2.resize(img, (224, 224))
+            img = cv2.resize(img, (224, 224))
+            img = torch.from_numpy(img.copy())
+            img = rearrange(img, 'h w c -> c h w')
             # center crop
             # img = img[144: 144+224, 144: 144+224]
             # img = torch.from_numpy(img.copy())
             # img = rearrange(img, 'h w c -> c h w')
-            imgs = []
-            for i in range(5):
-                x = random.randint(0, 288)
-                y = random.randint(0, 288)
-                patch = img[x: x+224, y: y+224]
-                patch = torch.from_numpy(patch.copy())
-                patch = rearrange(patch, 'h w c -> c h w')
-                imgs.append(patch)
-            img = tuple(imgs)
+            # imgs = []
+            # for i in range(5):
+            #     x = random.randint(0, 288)
+            #     y = random.randint(0, 288)
+            #     patch = img[x: x+224, y: y+224]
+            #     patch = torch.from_numpy(patch.copy())
+            #     patch = rearrange(patch, 'h w c -> c h w')
+            #     imgs.append(patch)
+            # img = tuple(imgs)
 
         if self.norm == True:
             img = transformer(img)
 
-        return img, mean
+        return img, mean, imgname
 
 
 class MayoRandomPatchDataset(Dataset):
@@ -110,7 +114,7 @@ class MayoRandomPatchDataset(Dataset):
         ])
 
         # transform image
-        if self.transform is 'train':
+        if self.transform == 'train':
             # random horizontal flip
             if random.random() >= 0.5:
                 img = np.flip(img, 1)

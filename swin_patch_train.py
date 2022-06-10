@@ -80,8 +80,8 @@ args = parser.parse_args()
 
 # Training settings
 batch_size = args.batch_size
-# epochs = 500
-epochs = 300
+epochs = 500
+# epochs = 300
 lr = args.lr
 gamma = args.gamma
 step = args.step
@@ -91,15 +91,15 @@ seed_everything(seed)
 device = 'cuda:{}'.format(args.gid)
 
 # load data
-total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286', 'L333', 'L506']
+total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286', 'L333'] #, 'L506']
 val_pid = [args.val_pid]
 train_pid = [pid for pid in total_pid if pid not in val_pid]
-test_pid = ['L067']
+test_pid = ['L067', 'L506']
 # train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
 # val_pid = ['L333']
 
 label_dir = '../../data/nimg-train-3channel/mayo_10pid_total.csv'
-# test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
+test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
 
 temp_train_list = []
 for pid in train_pid:
@@ -107,15 +107,30 @@ for pid in train_pid:
 temp_val_list = []
 for pid in val_pid:
     temp_val_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+temp_test_list = []
+for pid in test_pid:
+    temp_test_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
 
-train_list, val_list = [], []
+train_list, val_list, test_list = [], [], []
 for i in range(len(temp_train_list)):
     train_list += temp_train_list[i]
 for i in range(len(temp_val_list)):
     val_list += temp_val_list[i]
+for i in range(len(temp_test_list)):
+    test_list += temp_test_list[i]
 train_list = sorted(train_list)
 val_list = sorted(val_list)
-test_list = sorted(glob('../../data/nimg-train-3channel/L067/*/*.tiff')) # L506 & L067
+test_list = sorted(test_list)
+# test_list = sorted(glob('../../data/nimg-train-3channel/L067/*/*.tiff')) # L506 & L067
+# test_list = sorted(glob('../../data/nimg-test-3channel/*/*/*.tiff'))
+
+print('================================')
+print('    Dataset')
+print('--------------------------------')
+print('    Train: ', len(train_list))
+print('    Validation: ', len(val_list))
+print('    Test: ', len(test_list))
+print('================================')
 
 # load datasets
 # train_data = MayoDataset(train_list, label_dir, transform='train', norm=False)
@@ -142,7 +157,7 @@ model = torch.nn.DataParallel(model).cuda()
 # loss function
 criterion = nn.L1Loss() #nn.MSELoss()
 # optimizer
-optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-1)
 if args.scheduler == 'step':
     scheduler = StepLR(optimizer, step_size=step, gamma=gamma)
 elif args.scheduler == 'plateau':
@@ -188,6 +203,7 @@ if args.transfer == 'detection':
 
 # detection for conv and swin
 if args.transfer == 'swin_conv_detection':
+    print('detection weights')
     swin_checkpoint = torch.load('../Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
     conv_checkpoint = torch.load('/data1/wonkyong/workspace/Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_convnext/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
 

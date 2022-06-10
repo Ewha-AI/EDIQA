@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from utils import calculate_plcc
 from models.SwinT_modified2 import SwinTransformer
-from dataset import MayoDataset, MayoRandomPatchDataset2
+from dataset import MayoRandomPatchDataset2, MayoDataset
 from glob import glob
 import pandas as pd
 from tqdm import tqdm
@@ -17,6 +17,8 @@ import numpy as np
 import os
 from einops import rearrange
 import argparse
+
+from models.build import build_model
 
 
 parser = argparse.ArgumentParser(description='TIQA')
@@ -43,30 +45,40 @@ test_data = MayoDataset(test_list, label_dir, transform='val', norm=args.norm)
 test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False)
 
 # set model
-model = SwinTransformer(feature_num=4, mlp_head=1)
+# model = SwinTransformer(feature_num=4, mlp_head=1)
+model = build_model(args.model_type)
 model = model.to(device)
 
 # transfer weights
-checkpoint = torch.load('./work_dirs/{}/{}.pth'.format(args.work_dirs, args.model_type), map_location=device)
-model.load_state_dict(checkpoint, strict=False)
+checkpoint = torch.load('./work_dirs/{}/best_plcc.pth'.format(args.work_dirs), map_location=device)
+
+for key in list(checkpoint.keys()):
+    checkpoint[key.replace('module.', '')] = checkpoint.pop(key)
+
+model.load_state_dict(checkpoint, strict=True)
 
 # test
-model.eval()
-test_output, gt = [], []
-with torch.no_grad():
-    for data, mean in tqdm(test_loader, desc='test'):
-        data = data.to(device)
-        mean = mean.to(device)
-        mean = rearrange(mean, 'b -> b 1')
+with open('tiqa25.txt', "a") as log:
+    model.eval()
+    test_output, gt = [], []
+    with torch.no_grad():
+        for data, mean, imgname in tqdm(test_loader, desc='test'):
+            data = data.to(device)
+            mean = mean.to(device)
+            mean = rearrange(mean, 'b -> b 1')
 
-        output = model(data)
-        test_output.append(output)
-        gt.append(mean)
+            output = model(data)
+            test_output.append(output)
+            gt.append(mean)
 
-    test_plcc = calculate_plcc(test_output[0], gt[0])
-    # epoch_test_plcc += val_plcc / len(val_loader)
-    # epoch_val_loss += val_loss / len(val_loader)
+            log.write('{},{}\n'.format(imgname[0], float(output[0])))
 
-print(
-    f"Test PLCC : {test_plcc:.4f}.."
-)
+        # test_plcc = calculate_plcc(test_output[0], gt[0])
+        # epoch_test_plcc += val_plcc / len(val_loader)
+        # epoch_val_loss += val_loss / len(val_loader)
+
+
+
+# print(
+#     f"Test PLCC : {test_plcc:.4f}.."
+# )

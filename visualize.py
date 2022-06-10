@@ -138,13 +138,13 @@ def plot_comparison(log_folder, logs, fields=('class_error', 'loss_bbox_unscaled
 
     fig, axs = plt.subplots(ncols=len(fields), figsize=(16, 5))
 
-    print(['{}_val_{}'.format(logs[i], 1) for i in range(len(logs))])
+    # print(['val_{}'.format(logs[i]) for i in range(len(logs))])
     for df, color in zip([dfs], sns.color_palette(n_colors=len(logs))):
         color = sns.color_palette(n_colors=len(logs))
         for j, field in enumerate(fields):
             df.plot(
-                # y=[f'{field}', f'val_{field}'],
-                y=['{}_val_{}'.format(logs[i], field) for i in range(len(logs))],
+                y=[f'train_loss', f'val_plcc', f'test_plcc'],
+                # y=['val_{}'.format(field) for i in range(len(logs))],
                 ax=axs[j],
                 color=color,
                 style=['-'] * 4
@@ -198,25 +198,41 @@ def plot_precision_recall(files, naming_scheme='iter'):
 if __name__=='__main__':
 
     names = ['final_no_aug_mae_cosine', 'final_horizontal_aug_mae_cosine', 'train_random1_val_center4_vhflip_mae_cosine']
+    names = ['25pid_val143_batch256']
 
-    log_directory = []
-    for i in names:
-        log_directory.append(Path('work_dirs/{}'.format(i)))
-    fields_of_interest = (
-        'loss',
-        'plcc'
-        )
-    plot_comparison('comp', log_directory,
-            fields_of_interest)
-    exit()
+    # log_directory = []
+    # for i in names:
+    #     log_directory.append(Path('work_dirs/{}'.format(i)))
+    # # print('log dir: ', log_directory)
+    # fields_of_interest = (
+    #     # 'loss',
+    #     'plcc'
+    #     )
+    # plot_comparison('comp', log_directory,
+    #         fields_of_interest)
+    # exit()
 
-    for n in names:
-        log_name = n
-        log_directory = [Path('work_dirs/{}'.format(log_name))]
+    # for n in names:
+    #     log_name = '25pid_val143_batch256'
+    #     log_directory = [Path('work_dirs/{}'.format(log_name))]
 
-        fields_of_interest = (
-            # 'loss',
-            'plcc'
-            )
-        plot_logs(log_name, log_directory,
-                fields_of_interest)
+    #     fields_of_interest = (
+    #         # 'loss',
+    #         'plcc'
+    #         )
+    #     plot_logs(log_name, log_directory,
+    #             fields_of_interest)
+
+
+    log = pd.read_json('work_dirs/25pid_val143_batch256/logs.txt', lines=True)
+    train_y = log['train_plcc']
+    val_y = log['val_plcc']
+    test_y = log['test_plcc']
+
+    print(len(train_y), len(val_y), len(test_y))
+
+    plt.plot(train_y, label='train_plcc')
+    plt.plot(val_y, label='val_plcc')
+    plt.plot(test_y, label='test_plcc')
+    plt.legend()
+    plt.savefig('comp.png')

@@ -15,11 +15,11 @@ class SwinConvConcat(nn.Module):
 
         self.swin_transformer = OGBackbone()
         self.convnext = ConvNeXt() 
-        self.attn = Attention(multi_feature=True, fpn=True, dim=512)
+        self.attn = Attention(multi_feature=True, fpn=True, dim=256)
         self.fpn = FPN(in_channels=[192, 384, 768, 768],
-                       out_channels=256,
+                       out_channels=128, # 256
                        num_outs=4)
-        self.head = AvgPoolRegression(fpn=True, dim=512, feature_num=4)
+        self.head = AvgPoolRegression(fpn=True, dim=256, feature_num=4) # 512
 
         dims = [96, 192, 384, 768]
 

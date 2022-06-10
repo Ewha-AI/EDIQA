@@ -5,3 +5,5 @@ __pycache__/*
 models/__pycache__/*
 cat.jpg
 test*.png
+*.txt
+*.png
