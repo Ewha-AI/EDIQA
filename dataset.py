@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from PIL import Image
+from PIL import Image, ImageOps
 import pandas as pd
 from utils import get_distribution
 import numpy as np
@@ -10,6 +10,131 @@ import random
 from einops import rearrange
 import torchvision
 import torchvision.transforms as transforms
+import nibabel as nib
+import SimpleITK as sitk
+
+def createMIP(np_img, slices_num = 15):
+    ''' create the mip image from original image, slice_num is the number of 
+    slices for maximum intensity projection
+    https://github.com/ljpadam/maximum_intensity_projection/blob/master/maximum_intensity_projection.py'''
+    img_shape = np_img.shape
+    np_mip = np.zeros(img_shape)
+    for i in range(img_shape[0]):
+        start = max(0, i-slices_num)
+        np_mip[i,:,:] = np.amax(np_img[start:i+1],0)
+    return np_mip
+
+
+class ABIDEData(Dataset):
+    def __init__(self, file_list):
+        self.file_list = file_list
+    
+    def __len__(self):
+        self.filelength = len(self.file_list)
+        return self.filelength
+        
+    def __getitem__(self, idx):
+        imgs = []
+        img_path = self.file_list[idx]
+        # print(img_path)
+        nii_img = nib.load(img_path).get_fdata()
+        # print(img.shape)
+        # get center slice
+        h, w, c = nii_img.shape
+        for i in range(1):
+            # img = nii_img[:,:,int(c/2)-15+i]
+
+            #find out center slice
+            slice_idx = []
+            for ch in range(c):
+                intst = np.mean(nii_img[:,:,ch])
+                if intst != 0:
+                    slice_idx.append(ch)
+            mid = int(np.median(slice_idx))
+
+            # img = nii_img[:,:,int(c/2)]
+            img = nii_img[:,:,mid]
+            # pad and crop image
+            size = max(h, w)
+            pimg = np.zeros((size, size))
+            if h != w:
+                try:
+                    pimg[int(size/2)-int(h/2):int(size/2)+int(h/2)+1, int(size/2)-int(w/2):int(size/2)+int(w/2)] = img
+                except:
+                    pimg[int(size/2)-int(h/2):int(size/2)+int(h/2), int(size/2)-int(w/2):int(size/2)+int(w/2)+1] = img
+                img = pimg[int(size/2)-112:int(size/2)+112,int(size/2)-112:int(size/2)+112]
+                # imageio.imsave('ptest.png', img)
+                # print(img.shape)
+                # exit()
+            # normalize image
+            else:
+                img = img[int(size/2)-112:int(size/2)+112,int(size/2)-112:int(size/2)+112]
+            # imageio.imsave('test_{}.nii'.format(idx), img)
+            # print(img_path,int(c/2), np.max(img), np.min(img))
+            img = (img-np.min(img))/(np.max(img)-np.min(img))
+            # except:
+                # print(img_path)
+
+            # sitk_img = sitk.ReadImage(img_path)
+            # np_img = sitk.GetArrayFromImage(sitk_img)
+            # img = createMIP(np_img, slices_num = 256)
+            # sitk_mip = sitk.GetImageFromArray(img)
+            # sitk_mip.SetOrigin(sitk_img.GetOrigin())
+            # sitk_mip.SetSpacing(sitk_img.GetSpacing())
+            # sitk_mip.SetDirection(sitk_img.GetDirection())
+            # writer = sitk.ImageFileWriter()
+            # writer.SetFileName('test.nii')
+            # writer.Execute(sitk_mip)
+            # imageio.imsave('test.png', img[:,:,150])
+            # exit()
+            # imageio.imsave('test_{}.png'.format(idx), img)
+
+            # img = cv2.resize(img, (224, 224))
+            img = np.dstack([img, img, img])
+            # imageio.imsave('ptest.IMA', img)
+            # temp = nib.Nifti1Image(img, None)
+            # nib.save(temp, 'test_{}.nii'.format(idx))
+            # exit()
+            imageio.imsave('imgs/{}_{}_{}_{}_{}.png'.format(img_path.split('/')[-5], img_path.split('/')[-4], img_path.split('/')[-3], img_path.split('/')[-2], i), img)
+
+            img = torch.from_numpy(img.copy())
+            img = rearrange(img, 'h w c -> c h w')
+
+            imgs.append(img)
+
+
+        level = img_path.split('/')[-2]
+        img_name = '{}_{}_{}_{}'.format(img_path.split('/')[-5], img_path.split('/')[-4], img_path.split('/')[-3], img_path.split('/')[-2])
+        # img_name = img_path.split('/')[-1]
+        # print(img_name)
+        # exit()
+
+        return imgs, img_name
+
+
+class PhantomData(Dataset):
+    def __init__(self, file_list):
+        self.file_list = file_list
+    
+    def __len__(self):
+        self.filelength = len(self.file_list)
+        return self.filelength
+        
+    def __getitem__(self, idx):
+        img_path = self.file_list[idx]
+        img = imageio.imread(img_path)
+        img = cv2.resize(img, (224, 224))
+        img = np.dstack([img, img, img])
+        img = torch.from_numpy(img.copy())
+        img = rearrange(img, 'h w c -> c h w')
+
+        level = img_path.split('/')[-2]
+        # img_name = '{}_{}_{}_{}'.format(img_path.split('/')[-4], img_path.split('/')[-3], img_path.split('/')[-2], img_path.split('/')[-1])
+        img_name = img_path.split('/')[-1]
+
+        return img, level, img_name
+
+
 
 class MayoDataset(Dataset):
     def __init__(self, file_list, csv_dir, transform='train', norm=False):
@@ -80,7 +205,7 @@ class MayoDataset(Dataset):
         if self.norm == True:
             img = transformer(img)
 
-        return img, mean #, imgname
+        return img, mean, imgname
 
 
 class MayoRandomPatchDataset(Dataset):
@@ -158,7 +283,6 @@ class MayoRandomPatchDataset2(Dataset):
         # read image
         # print(idx)
         img_path = self.file_list[idx]
-        # print(img_path)
         # print(img_path)
         img = imageio.imread(img_path)
 
