@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 
 import torchvision
 from torchvision import datasets, models, transforms
@@ -17,6 +17,8 @@ import numpy as np
 import os
 from einops import rearrange
 import argparse
+
+from torch_ema import ExponentialMovingAverage
 
 from models.swin_transformer import SwinTransformer
 
@@ -73,26 +75,26 @@ seed_everything(seed)
 device = 'cuda:{}'.format(args.gid)
 
 # load data
-total_pid = sorted(os.listdir('../../data/nimg-train-3channel'))
+total_pid = sorted(os.listdir('../../data/nimg_3ch'))
 total_pid = [pid for pid in total_pid if pid[0]=='L']
 val_pid = [args.val_pid]
 train_pid = [pid for pid in total_pid if pid not in val_pid]
 test_pid = ['L067', 'L506']
 # train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
-# val_pid = ['L333']
+val_pid = ['L179', 'L186', 'L187', 'L125']
 
-label_dir = '../../data/nimg-train-3channel/mayo25yp_total.csv'
-test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
+label_dir = '../../data/nimg_3ch/mayo57np.csv'
+# test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
 
 temp_train_list = []
 for pid in train_pid:
-    temp_train_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_train_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 temp_val_list = []
 for pid in val_pid:
-    temp_val_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_val_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 temp_test_list = []
 for pid in test_pid:
-    temp_test_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_test_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 
 
 train_list, val_list, test_list = [], [], []
@@ -140,7 +142,10 @@ if args.scheduler == 'step':
 elif args.scheduler == 'cosine':
     optimizer = optim.Adam(model.parameters(), lr=0) #, weight_decay=0.1)
     scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=100, T_mult=1, eta_max=lr,  T_up=10, gamma=0.5)
+elif args.scheduler == 'plateau':
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
 
+best_loss = 100
 best_plcc = 0
 best_epoch = 0
 start_epoch = 0
@@ -231,6 +236,9 @@ elif args.transfer == 'resume':
     best_plcc = 75.0894 # 21_2
     start_epoch = 250
 
+# ema update
+# ema = ExponentialMovingAverage(model.parameters(), decay=0.995)
+
 for epoch in range(start_epoch, epochs):
     epoch_loss = 0
     epoch_plcc = 0
@@ -261,9 +269,12 @@ for epoch in range(start_epoch, epochs):
         # acc = (output.argmax(dim=1) == label).float().mean()
         # epoch_accuracy += acc / len(train_loader)
 
+        # ema.update()
+
     # validation
     model.eval()
     with torch.no_grad():
+        # with ema.average_parameters():
         epoch_val_plcc = 0
         epoch_val_loss = 0
         for data, mean in tqdm(val_loader, desc='validation'):
@@ -284,6 +295,7 @@ for epoch in range(start_epoch, epochs):
     # test
     model.eval()
     with torch.no_grad():
+        # with ema.average_parameters():
         epoch_test_plcc = 0
         for data, mean in tqdm(test_loader, desc='test'):
             # data = data.to(device)
@@ -304,9 +316,15 @@ for epoch in range(start_epoch, epochs):
         os.mkdir(work_dir)
 
     # save best plcc model
-    if epoch_val_plcc >= best_plcc:
-        best_plcc = epoch_val_plcc
-        torch.save(model.state_dict(), work_dir+'best_plcc.pth'.format(epoch+1))
+    # if epoch_val_plcc >= best_plcc:
+    #     best_plcc = epoch_val_plcc
+    #     torch.save(model.state_dict(), work_dir+'best_plcc.pth'.format(epoch+1))
+    #     best_epoch = epoch+1
+
+    # save best loss model
+    if epoch_val_loss <= best_loss:
+        best_loss = epoch_val_loss
+        torch.save(model.state_dict(), work_dir+'best_loss.pth'.format(epoch+1))
         best_epoch = epoch+1
         
     # save lastest model
@@ -345,7 +363,9 @@ for epoch in range(start_epoch, epochs):
     
     # print('lr: ', scheduler.get_lr())
 
-    if args.scheduler=='cosine': #and epoch >= 100:
-        scheduler.step()
-    elif args.scheduler == 'step':
-        scheduler.step()
+    # if args.scheduler=='cosine': #and epoch >= 100:
+    #     scheduler.step()
+    # elif args.scheduler == 'step':
+    #     scheduler.step()
+    if args.scheduler == 'plateau':
+        scheduler.step(epoch_loss)

@@ -91,25 +91,26 @@ seed_everything(seed)
 device = 'cuda:{}'.format(args.gid)
 
 # load data
-total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286', 'L333'] #, 'L506']
+# total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286', 'L333'] #, 'L506']
+total_pid = os.listdir('../../data/nimg_3ch')
 val_pid = [args.val_pid]
 train_pid = [pid for pid in total_pid if pid not in val_pid]
 test_pid = ['L067', 'L506']
 # train_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
 # val_pid = ['L333']
 
-label_dir = '../../data/nimg-train-3channel/mayo_10pid_total.csv'
-test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
+label_dir = '../../data/nimg_3ch/mayo57yp.csv'
+# test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
 
 temp_train_list = []
 for pid in train_pid:
-    temp_train_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_train_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 temp_val_list = []
 for pid in val_pid:
-    temp_val_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_val_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 temp_test_list = []
 for pid in test_pid:
-    temp_test_list.append(glob('../../data/nimg-train-3channel/{}/*/*.tiff'.format(pid)))
+    temp_test_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
 
 train_list, val_list, test_list = [], [], []
 for i in range(len(temp_train_list)):

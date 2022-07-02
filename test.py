@@ -58,7 +58,7 @@ for key in list(checkpoint.keys()):
 model.load_state_dict(checkpoint, strict=True)
 
 # test
-with open('tiqa25.txt', "a") as log:
+with open('tiqa_temp_mri.txt', "a") as log:
     model.eval()
     test_output, gt = [], []
     with torch.no_grad():

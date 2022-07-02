@@ -80,7 +80,7 @@ class MayoDataset(Dataset):
         if self.norm == True:
             img = transformer(img)
 
-        return img, mean, imgname
+        return img, mean #, imgname
 
 
 class MayoRandomPatchDataset(Dataset):
@@ -158,6 +158,7 @@ class MayoRandomPatchDataset2(Dataset):
         # read image
         # print(idx)
         img_path = self.file_list[idx]
+        # print(img_path)
         # print(img_path)
         img = imageio.imread(img_path)
 
