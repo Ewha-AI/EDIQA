@@ -197,8 +197,8 @@ def plot_precision_recall(files, naming_scheme='iter'):
 
 if __name__=='__main__':
 
-    names = ['final_no_aug_mae_cosine', 'final_horizontal_aug_mae_cosine', 'train_random1_val_center4_vhflip_mae_cosine']
-    names = ['25pid_val143_batch256']
+    names = ['lr1e-4_plateau', 'triq_numclass1']
+    # names = ['25pid_val143_batch256']
 
     # log_directory = []
     # for i in names:
@@ -224,15 +224,17 @@ if __name__=='__main__':
     #             fields_of_interest)
 
 
-    log = pd.read_json('work_dirs/25pid_val143_batch256/logs.txt', lines=True)
-    train_y = log['train_plcc']
-    val_y = log['val_plcc']
-    test_y = log['test_plcc']
+    for name in names:
+        print('work_dirs/{}/logs.txt'.format(name))
+        log = pd.read_json('work_dirs/{}/logs.txt'.format(name), lines=True)
+        train_y = log['train_plcc']
+        val_y = log['val_plcc']
+        test_y = log['test_plcc'][:100]
 
-    print(len(train_y), len(val_y), len(test_y))
+        print(len(train_y), len(val_y), len(test_y))
 
-    plt.plot(train_y, label='train_plcc')
-    plt.plot(val_y, label='val_plcc')
-    plt.plot(test_y, label='test_plcc')
+        # plt.plot(train_y, label='train_plcc')
+        # plt.plot(val_y, label='val_plcc')
+        plt.plot(test_y, label='{}_test_plcc'.format(name))
     plt.legend()
-    plt.savefig('comp.png')
+    plt.savefig('comp_tiqa_triq_256.png')

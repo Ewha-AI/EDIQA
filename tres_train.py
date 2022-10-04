@@ -1,15 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau, CosineAnnealingLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
+import random
 
 import torchvision
 from torchvision import datasets, models, transforms
 from torch.utils.data import DataLoader
+from collections import OrderedDict
 
 from utils import seed_everything, get_distribution, distribution_to_score, calculate_plcc, CosineAnnealingWarmUpRestarts
 from models.build import build_model
-from dataset import PhantomTIQAData
+from dataset import MayoDataset
 from glob import glob
 import pandas as pd
 from tqdm import tqdm
@@ -17,7 +19,6 @@ import numpy as np
 import os
 from einops import rearrange
 import argparse
-import random
 
 from torch_ema import ExponentialMovingAverage
 
@@ -48,7 +49,6 @@ def rank_loss(d, y, num_images, eps=1e-6, norm_num=True): # prediction, target
 parser = argparse.ArgumentParser(description='TIQA')
 
 parser.add_argument('--work_dirs', type=str, required=True, help='work directory name to save model')
-parser.add_argument('--weight_dirs', type=str, required=True, help='work directory name to save model')
 parser.add_argument('--transfer', type=str, default=None, help='whether to trasfer weights|Options: detection, imagenet, resume, none')
 parser.add_argument('--scheduler', type=str, default=None, help='whether to trasfer weights|Options: step, cosince, none')
 parser.add_argument('--batch_size', type=int, default=128, help='batch size')
@@ -77,17 +77,47 @@ device = 'cuda:{}'.format(args.gid)
 seed = 42
 seed_everything(seed)
 
-# load label
-label_dir = '../../data/csv/phantom_label.csv'
-test_label_dir = '../../data/csv/phantom_test_label.csv'
-
 # load data
-data = sorted(glob('../../data/phantom_train_test_new/train/phantom/ge/chest/*/*.tiff'))
-random.shuffle(data)
-train_list = data[:int(len(data)*0.9)]
-val_list = data[int(len(data)*0.9):]
-test_list = sorted(glob('../../data/phantom_train_test_new/test/phantom/ge/chest/*/*.tiff'))
+total_pid = ['L096', 'L291', 'L310', 'L109', 'L143', 'L192', 'L286']
+# total_pid = sorted(os.listdir('../../data/nimg_3ch'))
+total_pid = [pid for pid in total_pid if pid[0]=='L']
+test_pid = ['L067', 'L506']
+val_pid = args.val_pid
+train_pid = [pid for pid in total_pid if pid not in val_pid]
+train_pid = [pid for pid in train_pid if pid not in test_pid]
 
+# check if all pids are loaded
+assert len(set(train_pid + val_pid + test_pid)) == 10 #57
+
+# load label
+label_dir = '../../data/nimg_3ch/mayo57np.csv'
+# test_label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
+
+temp_train_list = []
+for pid in train_pid:
+    temp_train_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
+temp_val_list = []
+for pid in val_pid:
+    temp_val_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
+temp_test_list = []
+for pid in test_pid:
+    temp_test_list.append(glob('../../data/nimg_3ch/{}/*/*.tiff'.format(pid)))
+
+
+train_list, val_list, test_list = [], [], []
+for i in range(len(temp_train_list)):
+    train_list += temp_train_list[i]
+for i in range(len(temp_val_list)):
+    val_list += temp_val_list[i]
+for i in range(len(temp_test_list)):
+    test_list += temp_test_list[i]
+train_list = sorted(train_list)
+# random select train_list
+# random.shuffle(train_list)
+# train_list = sorted(train_list[:20000])
+
+val_list = sorted(val_list)
+test_list = sorted(test_list)
 
 print('================================')
 print('    Dataset')
@@ -97,10 +127,6 @@ print('    Validation: ', len(val_list))
 print('    Test: ', len(test_list))
 print('================================')
 
-# print([im.split('/')[-1] for im in train_list if im.split('/')[-1] not in temp_test])
-
-assert len(train_list) + len(val_list) + len(test_list) == len(set([im.split('/')[-1] for im in train_list] + [im.split('/')[-1] for im in val_list] + [im.split('/')[-1] for im in test_list]))
-
 # create work dirs
 work_dir = './work_dirs/{}/'.format(args.work_dirs)
 if os.path.isdir(work_dir) != True:
@@ -108,23 +134,24 @@ if os.path.isdir(work_dir) != True:
 
 # save train setup
 with open(work_dir+'setup.txt', "a") as log:
-    log_line = 'args:{}\ntrain_imgs:{}\nval_imgs:{}\ntest_imgs:{}'.format(args, len(train_list), len(val_list), len(test_list))
+    log_line = 'args:{}\ntrain_pid:{}\nval_pid:{}\ntest_pid:{}\ntrain_imgs:{}\nval_imgs:{}\ntest_imgs:{}'.format(args, train_pid, val_pid, test_pid,
+                                                                                                                 len(train_list), len(val_list), len(test_list))
     log.write(log_line)
 
 
 # load datasets
-train_data = PhantomTIQAData(train_list, label_dir, transform='train', norm=False)
+train_data = MayoDataset(train_list, label_dir, transform='train', norm=False)
 train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=4)
-val_data = PhantomTIQAData(val_list, label_dir, transform='val', norm=False)
+val_data = MayoDataset(val_list, label_dir, transform='val', norm=False)
 val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=4)
-test_data = PhantomTIQAData(test_list, test_label_dir, transform='test', norm=False)
+test_data = MayoDataset(test_list, label_dir, transform='val', norm=False)
 test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False, num_workers=4)
 
 # set model
 # model = SwinTransformer(feature_num=args.feature_num, mlp_head = args.mlp_head)
-model = build_model(args.model_type)
 # model = SwinTransformer(num_classes=1)
 # model = model.to(device)
+model = build_model(args.model_type)
 model = torch.nn.DataParallel(model).cuda()
 
 # training setting
@@ -186,50 +213,33 @@ if args.transfer == 'detection':
     # exit()
 
 elif args.transfer == 'imagenet':
-    checkpoint = torch.load('/data1/wonkyong/workspace/TmIQA/work_dirs/swin_tiny_patch4_window7_224.pth')
+    swin_checkpoint = torch.load('/data1/wonkyong/workspace/TmIQA/work_dirs/swin_tiny_patch4_window7_224.pth')
+    conv_checkpoint = torch.load('/data1/wonkyong/workspace/TmIQA/work_dirs/convnext_tiny_22k_224.pth')
     
-    del checkpoint['model']['head.bias']
-    del checkpoint['model']['head.weight']   
+    del swin_checkpoint['model']['head.bias']
+    del swin_checkpoint['model']['head.weight'] 
+    del conv_checkpoint['model']['head.bias']
+    del conv_checkpoint['model']['head.weight']   
 
-    # del checkpoint['model']['norm.weight']
-    # del checkpoint['model']['norm.bias']
+    del swin_checkpoint['model']['norm.weight']
+    del swin_checkpoint['model']['norm.bias']
+    del conv_checkpoint['model']['norm.weight']
+    del conv_checkpoint['model']['norm.bias']
 
-    for key in ['norm.weight', 'norm.bias']:
-        checkpoint['model'][key.replace('norm.', 'norm3.')] = checkpoint['model'].pop(key)
+    # for key in ['norm.weight', 'norm.bias']:
+    #     swin_checkpoint['model'][key.replace('norm.', 'norm3.')] = swin_checkpoint['model'].pop(key)
 
-    model.load_state_dict(checkpoint['model'], strict=False)
+    swin_new = OrderedDict()
+    conv_new = OrderedDict()
 
-elif args.transfer == 'swin_conv_detection':
-    print('detection weights')
-    swin_checkpoint = torch.load('../Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_detDataset_1_3/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
-    conv_checkpoint = torch.load('/data1/wonkyong/workspace/Swin-Transformer-Object-Detection/work_dirs/cascade_mask_rcnn_convnext/epoch_100.pth', map_location='cuda:{}'.format(args.gid))
+    for key, value in swin_checkpoint['model'].items():
+        swin_new['module.0.swin_transformer.' + key] = value
+    for key, value in conv_checkpoint['model'].items():
+        swin_new['module.0.convnext.' + key] = value
 
-    del swin_checkpoint['meta']
-    del swin_checkpoint['optimizer']
-    del conv_checkpoint['meta']
-    del conv_checkpoint['optimizer']
+    swin_new.update(conv_new)
 
-    s_layers = [c for c in swin_checkpoint['state_dict'].keys() if 'backbone' not in c]
-    c_layers = [c for c in conv_checkpoint['state_dict'].keys() if 'backbone' not in c]
-
-    for l in s_layers:
-        del swin_checkpoint['state_dict'][l]
-    for l in c_layers:
-        del conv_checkpoint['state_dict'][l]
-
-    print(conv_checkpoint.keys())
-
-    for key in list(swin_checkpoint['state_dict'].keys()):
-        if 'backbone' in key:
-            swin_checkpoint['state_dict'][key.replace('backbone.', 'module.0.swin_transformer.')] = swin_checkpoint['state_dict'].pop(key)
-
-    for key in list(conv_checkpoint['state_dict'].keys()):
-        if 'backbone' in key:
-            conv_checkpoint['state_dict'][key.replace('backbone.', 'module.0.convnext.')] = conv_checkpoint['state_dict'].pop(key)
-
-    
-    swin_checkpoint['state_dict'].update(conv_checkpoint['state_dict'])
-    model.load_state_dict(swin_checkpoint['state_dict'], strict=False)
+    model.load_state_dict(swin_new, strict=False)
 
 elif args.transfer == 'swin_conv_detection':
     print('detection weights')
@@ -264,91 +274,143 @@ elif args.transfer == 'swin_conv_detection':
     model.load_state_dict(swin_checkpoint['state_dict'], strict=False)
 
 elif args.transfer == 'resume':
-    print('resume')
-    checkpoint = torch.load('./work_dirs/{}/best_loss.pth'.format(args.weight_dirs))
+    checkpoint = torch.load('./work_dirs/{}/latest.pth'.format(args.work_dirs))
     model.load_state_dict(checkpoint, strict=True)
     # best_epoch = pd.read_json('./work_dirs/{}/logs.txt'.format(args.work_dirs), lines=True)
     # print(best_epoch)
     # exit()
-    # best_plcc = 75.0894 # 21_2
-    # start_epoch = 250
+    best_plcc = 75.0894 # 21_2
+    start_epoch = 250
+
+else:
+    print('Train from scratch')
 
 # ema update
 # ema = ExponentialMovingAverage(model.parameters(), decay=0.995)
 
 for epoch in range(start_epoch, epochs):
-    epoch_loss = 0
-    epoch_plcc = 0
+    epoch_loss = []
+    pred_scores = []
+    gt_scores = []
 
     model.train()
     for data, mean in tqdm(train_loader, desc='train'):
-        # data = data.to(device)
-        # mean = mean.to(device).double()
-        data = data.cuda()
-        mean = mean.cuda()
-        
-        output = model(data).double()
-        mean = rearrange(mean, 'b -> b 1')
-        loss = criterion(output, mean)# + rank_loss(output, mean, len(output))
-        # print(loss)
-        # print(torch.is_tensor(loss))
-        # print(int(loss[0]))
-        # exit()
+        img = torch.as_tensor(data.cuda()).requires_grad_(False)
+        label = torch.as_tensor(mean.cuda()).requires_grad_(False)
 
-        optimizer.zero_grad()
+        # steps+=1
+        
+        model.zero_grad()
+
+        pred,closs = model(img)
+        pred2,closs2 = model(torch.flip(img, [3]))  
+
+        pred_scores = pred_scores + pred.flatten().cpu().tolist()
+        gt_scores = gt_scores + label.cpu().tolist()
+
+        loss_qa = criterion(pred.squeeze(), label.float().detach())
+        loss_qa2 = criterion(pred2.squeeze(), label.float().detach())
+        # =============================================================================
+        # =============================================================================
+
+        indexlabel = torch.argsort(label) # small--> large
+        anchor1 = torch.unsqueeze(pred[indexlabel[0],...].contiguous(),dim=0) # d_min
+        positive1 = torch.unsqueeze(pred[indexlabel[1],...].contiguous(),dim=0) # d'_min+
+        negative1_1 = torch.unsqueeze(pred[indexlabel[-1],...].contiguous(),dim=0) # d_max+
+
+        anchor2 = torch.unsqueeze(pred[indexlabel[-1],...].contiguous(),dim=0)# d_max
+        positive2 = torch.unsqueeze(pred[indexlabel[-2],...].contiguous(),dim=0)# d'_max+
+        negative2_1 = torch.unsqueeze(pred[indexlabel[0],...].contiguous(),dim=0)# d_min+
+
+        # =============================================================================
+        # =============================================================================
+
+        fanchor1 = torch.unsqueeze(pred2[indexlabel[0],...].contiguous(),dim=0)
+        fpositive1 = torch.unsqueeze(pred2[indexlabel[1],...].contiguous(),dim=0)
+        fnegative1_1 = torch.unsqueeze(pred2[indexlabel[-1],...].contiguous(),dim=0)
+
+        fanchor2 = torch.unsqueeze(pred2[indexlabel[-1],...].contiguous(),dim=0)
+        fpositive2 = torch.unsqueeze(pred2[indexlabel[-2],...].contiguous(),dim=0)
+        fnegative2_1 = torch.unsqueeze(pred2[indexlabel[0],...].contiguous(),dim=0)
+
+
+
+        consistency = nn.L1Loss()
+        assert (label[indexlabel[-1]]-label[indexlabel[1]])>=0
+        assert (label[indexlabel[-2]]-label[indexlabel[0]])>=0
+        triplet_loss1 = nn.TripletMarginLoss(margin=(label[indexlabel[-1]]-label[indexlabel[1]]), p=1) # d_min,d'_min,d_max
+        # triplet_loss2 = nn.TripletMarginLoss(margin=label[indexlabel[0]], p=1)
+        triplet_loss2 = nn.TripletMarginLoss(margin=(label[indexlabel[-2]]-label[indexlabel[0]]), p=1)
+        # triplet_loss1 = nn.TripletMarginLoss(margin=label[indexlabel[-1]], p=1)
+        # triplet_loss2 = nn.TripletMarginLoss(margin=label[indexlabel[0]], p=1)
+        tripletlosses = triplet_loss1(anchor1, positive1, negative1_1) + \
+            triplet_loss2(anchor2, positive2, negative2_1)
+        ftripletlosses = triplet_loss1(fanchor1, fpositive1, fnegative1_1) + \
+            triplet_loss2(fanchor2, fpositive2, fnegative2_1)
+        
+        loss = loss_qa + closs + loss_qa2 + closs2 + 0.5*( criterion(tripletlosses,ftripletlosses.detach())+ criterion(ftripletlosses,tripletlosses.detach()))+0.05*(tripletlosses+ftripletlosses)
+        # print('---------------------------')
+        # print(criterion(tripletlosses,ftripletlosses.detach()))
+        # print('---------------------------')
+
+        # print(loss_qa, closs, loss_qa2, closs2, criterion(tripletlosses,ftripletlosses.detach())+ criterion(ftripletlosses,tripletlosses.detach())+0.05*(tripletlosses+ftripletlosses))
+        
+        epoch_loss.append(loss.item())
         loss.backward()
         optimizer.step()
 
-        gt = mean
-        plcc = calculate_plcc(output, gt)
-        epoch_plcc += plcc / len(train_loader)
-        epoch_loss += loss / len(train_loader)
-        # acc = (output.argmax(dim=1) == label).float().mean()
-        # epoch_accuracy += acc / len(train_loader)
-
-        # ema.update()
-
     # validation
     model.eval()
+    pred_scores = []
+    gt_scores = []
     with torch.no_grad():
-        # with ema.average_parameters():
-        epoch_val_plcc = 0
-        epoch_val_loss = 0
         for data, mean in tqdm(val_loader, desc='validation'):
-            # data = data.to(device)
-            # mean = mean.to(device)
-            data = data.cuda()
-            mean = mean.cuda()
-            mean = rearrange(mean, 'b -> b 1')
+            img = torch.as_tensor(data.cuda())
+            label = torch.as_tensor(mean.cuda())
+            pred, closs = model(img)
+            
 
-            val_output = model(data)
-            val_loss = criterion(val_output, mean)# + rank_loss(output, mean, len(output))
+            pred_scores = pred_scores + pred.cpu().tolist()
+            gt_scores = gt_scores + label.cpu().tolist()
 
-            gt = mean
-            val_plcc = calculate_plcc(val_output, gt)
-            epoch_val_plcc += val_plcc / len(val_loader)
-            epoch_val_loss += val_loss / len(val_loader)
+
+        pred_scores = np.mean(np.reshape(np.array(pred_scores), (-1, 50)), axis=1)
+        gt_scores = np.mean(np.reshape(np.array(gt_scores), (-1, 50)), axis=1)
+
+        val_srcc, _ = stats.spearmanr(pred_scores, gt_scores)
+        val_plcc, _ = stats.pearsonr(pred_scores, gt_scores)
+
+        loss_qa = self.l1_loss(pred.squeeze(), label.float().detach())
+        val_loss = loss_qa + closs
+
+    print(val_loss)
+    exit()
 
     # test
     model.eval()
+    pred_scores = []
+    gt_scores = []
     with torch.no_grad():
-        # with ema.average_parameters():
-        epoch_test_plcc = 0
         for data, mean in tqdm(test_loader, desc='test'):
-            # data = data.to(device)
-            # mean = mean.to(device)
-            data = data.cuda()
-            mean = mean.cuda()
-            mean = rearrange(mean, 'b -> b 1')
+            img = torch.as_tensor(data.cuda())
+            label = torch.as_tensor(mean.cuda())
+            pred,_ = model(img)
+            
 
-            test_output = model(data)
-            gt = mean
+            pred_scores = pred_scores + pred.cpu().tolist()
+            gt_scores = gt_scores + label.cpu().tolist()
 
-            # print(test_output)
-            # print(gt)
 
-            test_plcc = calculate_plcc(test_output, gt)
-            epoch_test_plcc += test_plcc / len(test_loader)
+        pred_scores = np.mean(np.reshape(np.array(pred_scores), (-1, self.test_patch_num)), axis=1)
+        gt_scores = np.mean(np.reshape(np.array(gt_scores), (-1, self.test_patch_num)), axis=1)
+
+        test_srcc, _ = stats.spearmanr(pred_scores, gt_scores)
+        test_plcc, _ = stats.pearsonr(pred_scores, gt_scores)
+
+    # create work dirs
+    work_dir = './work_dirs/{}/'.format(args.work_dirs)
+    if os.path.isdir(work_dir) != True:
+        os.mkdir(work_dir)
 
     # save best plcc model
     # if epoch_val_plcc >= best_plcc:
@@ -402,9 +464,5 @@ for epoch in range(start_epoch, epochs):
     #     scheduler.step()
     # elif args.scheduler == 'step':
     #     scheduler.step()
-    if args.scheduler == None:
-        pass
-    elif args.scheduler == 'plateau':
-        scheduler.step(epoch_val_loss)
-    else:
-        scheduler.step()
+    if args.scheduler == 'plateau':
+        scheduler.step(epoch_loss)

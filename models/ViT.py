@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from torchsummary import summary
+# from torchsummary import summary
 
 from PIL import Image
 import numpy as np
@@ -88,7 +88,7 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
-    def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+    def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0.1, emb_dropout = 0.1):
         super().__init__()
         image_height, image_width = pair(image_size)
         patch_height, patch_width = pair(patch_size)
@@ -102,6 +102,10 @@ class ViT(nn.Module):
         self.backbone = torchvision.models.resnet50(pretrained=True)
         self.backbone = nn.Sequential(*[self.backbone.conv1, self.backbone.bn1, self.backbone.relu, self.backbone.maxpool,
                                         self.backbone.layer1, self.backbone.layer2, self.backbone.layer3, self.backbone.layer4])
+        # summary(self.backbone, (3, 224, 224))
+        # exit()
+        # print(self.backbone)
+
 
         self.Conv2dProjection = nn.Conv2d(2048, dim, (1, 1))
         
@@ -115,6 +119,7 @@ class ViT(nn.Module):
         self.flatten = Rearrange('b c w h -> b c (w h)')
 
         self.pos_embedding = nn.Parameter(torch.randn(1, dim, int((image_size/(32*2))**2)+1))
+        # self.pos_embedding = nn.Parameter(torch.randn(1, dim, 10))
         self.cls_token = nn.Parameter(torch.randn(1, dim, 1))
         self.dropout = nn.Dropout(emb_dropout)
 
@@ -126,9 +131,9 @@ class ViT(nn.Module):
         self.mlp_head = nn.Sequential(
             nn.Linear(dim, mlp_dim),
             nn.GELU(),
-            nn.Dropout(0.),
+            nn.Dropout(0.1),
             nn.Linear(mlp_dim, num_classes),
-            nn.Softmax(dim=1)
+            # nn.Softmax(dim=1)
         )
 
     def forward(self, img):
@@ -155,7 +160,7 @@ class ViT(nn.Module):
 
         # add positional embedding
         x += self.pos_embedding[:, :(n + 1)]
-        # x = self.dropout(x)
+        x = self.dropout(x)
 
         x = self.transformer(x)
 
@@ -163,8 +168,9 @@ class ViT(nn.Module):
         x = x[:, :, 0]
 
         x = self.to_latent(x)
+        x = self.mlp_head(x)
 
-        return self.mlp_head(x)
+        return x
 
 
 if __name__ == '__main__':

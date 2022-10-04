@@ -111,6 +111,65 @@ class ABIDEData(Dataset):
 
         return imgs, img_name
 
+class ABIDEIITIQAData(Dataset):
+    def __init__(self, file_list, csv_dir, transform='train', norm=False):
+        self.file_list = file_list
+        self.transform = transform
+        self.labels = pd.read_csv(csv_dir, encoding="UTF-7")
+        self.labels.index = self.labels['title']
+        self.norm = norm
+
+    def __len__(self):
+        self.filelength = len(self.file_list)
+        # self.filelength = len(self.labels)
+        return self.filelength
+
+    def __getitem__(self, idx):
+        # read image
+        img_path = self.file_list[idx]
+        imgname = 'ABIDEII-GU_1_{}_session_1_anat_1_{}'.format(img_path.split('/')[-2], img_path.split('/')[-1].split('.')[0])
+        img = imageio.imread(img_path)
+
+        # get label
+        mean = self.labels.loc[imgname].values[1]
+
+        # transform
+        transformer = transforms.Compose([
+            # transforms.ToTensor(),
+            transforms.Normalize([0, 0, 0], [1, 1, 1])
+        ])
+
+        # transform image
+        if self.transform == 'train':
+            # read image
+            # img_path = '../../data/phantom_train_test_new/train/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            # img = imageio.imread(img_path)
+            # img = cv2.resize(img, (224, 224))
+            if random.random() >= 0.5:
+                img = np.flip(img, 1)
+            if random.random() >= 0.5:
+                img = np.flip(img, 0)
+            img = torch.from_numpy(img.copy())
+            # img = np.dstack([img, img, img])
+            img = rearrange(img, 'h w c -> c h w')
+        else:
+            # read image
+            # if self.transform == 'val':
+            #     img_path = '../../data/phantom_train_test_new/train/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            # else:
+            #     img_path = '../../data/phantom_train_test_new/test/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            # img = imageio.imread(img_path)
+            # img = cv2.resize(img, (224, 224))
+            img = torch.from_numpy(img.copy())
+            # img = np.dstack([img, img, img])
+            img = rearrange(img, 'h w c -> c h w')
+
+        if self.norm == True:
+            # img = transformer(img)
+            pass
+
+        return img, mean, imgname
+
 
 class PhantomData(Dataset):
     def __init__(self, file_list):
@@ -133,6 +192,68 @@ class PhantomData(Dataset):
         img_name = img_path.split('/')[-1]
 
         return img, level, img_name
+
+
+class PhantomTIQAData(Dataset):
+    def __init__(self, file_list, csv_dir, transform='train', norm=False):
+        self.file_list = file_list
+        self.transform = transform
+        self.labels = pd.read_csv(csv_dir)
+        self.labels.index = self.labels['title']
+        self.norm = norm
+
+    def __len__(self):
+        # self.filelength = len(self.file_list)
+        self.filelength = len(self.labels)
+        return self.filelength
+
+    def __getitem__(self, idx):
+        # read image
+        # img_path = self.file_list[idx]
+        imgname = self.labels.index[idx]
+        # img = imageio.imread(img_path)
+
+        # get label
+        lv = '{}_{}'.format(imgname.split('_')[-2], imgname.split('_')[-1])
+        # imgname = '{}_{}_{}_{}'.format(fid.split('_')[0], fid.split('_')[1], fid.split('_')[-1], lv)
+        mean = self.labels.loc[imgname].values[1]
+
+        # transform
+        transformer = transforms.Compose([
+            # transforms.ToTensor(),
+            transforms.Normalize([0, 0, 0], [1, 1, 1])
+        ])
+
+        # transform image
+        if self.transform == 'train':
+            # read image
+            img_path = '../../data/phantom_train_test_new/train/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            img = imageio.imread(img_path)
+            # img = cv2.resize(img, (224, 224))
+            if random.random() >= 0.5:
+                img = np.flip(img, 1)
+            if random.random() >= 0.5:
+                img = np.flip(img, 0)
+            img = torch.from_numpy(img.copy())
+            img = np.dstack([img, img, img])
+            img = rearrange(img, 'h w c -> c h w')
+        else:
+            # read image
+            if self.transform == 'val':
+                img_path = '../../data/phantom_train_test_new/train/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            else:
+                img_path = '../../data/phantom_train_test_new/test/phantom/ge/chest/{}/{}_{}_{}_{}.tiff'.format(lv, imgname.split('_')[0], imgname.split('_')[1], lv, imgname.split('_')[2])
+            img = imageio.imread(img_path)
+            # img = cv2.resize(img, (224, 224))
+            img = torch.from_numpy(img.copy())
+            img = np.dstack([img, img, img])
+            img = rearrange(img, 'h w c -> c h w')
+
+        if self.norm == True:
+            # img = transformer(img)
+            pass
+
+        return img, mean, imgname
 
 
 
@@ -168,16 +289,20 @@ class MayoDataset(Dataset):
 
         # transform image
         if self.transform == 'train':
-            img = cv2.resize(img, (224, 224))
+            # img = cv2.resize(img, (224, 224))
             # center crop
             # img = img[144: 144+224, 144: 144+224]
             # random crop
             # x = random.randint(100, 189)
             # y = random.randint(100, 189)
-            # x = random.randint(0, 288)
-            # y = random.randint(0, 288)
+            # for cahdc
+            # x = random.randint(0, 212)
+            # y = random.randint(0, 212)
+            # img = img[x: x+300, y: y+300]
+            # for maniqa
+            # x = random.randint(0, 512-224)
+            # y = random.randint(0, 512-224)
             # img = img[x: x+224, y: y+224]
-            # imageio.imsave('random_crop_test_{}_{}.png'.format(x, y), img)
             if random.random() >= 0.5:
                 img = np.flip(img, 1)
             if random.random() >= 0.5:
@@ -185,7 +310,9 @@ class MayoDataset(Dataset):
             img = torch.from_numpy(img.copy())
             img = rearrange(img, 'h w c -> c h w')
         else:
-            img = cv2.resize(img, (224, 224))
+            # img = cv2.resize(img, (224, 224))
+            # img = img[int(512/2)-150: int(512/2)+150, int(512/2)-150: int(512/2)+150] # cahdc
+            # img = img[int(512/2)-112: int(512/2)+112, int(512/2)-112: int(512/2)+112] # maniqa
             img = torch.from_numpy(img.copy())
             img = rearrange(img, 'h w c -> c h w')
             # center crop
@@ -203,12 +330,13 @@ class MayoDataset(Dataset):
             # img = tuple(imgs)
 
         if self.norm == True:
-            img = transformer(img)
+            # img = transformer(img)
+            pass
 
         return img, mean, imgname
 
 
-class MayoRandomPatchDataset(Dataset):
+class MayoRandomPatchDataset(Dataset): # wadiqam
     def __init__(self, file_list, csv_dir, transform='train', norm=False):
         self.file_list = file_list
         self.transform = transform
@@ -243,29 +371,31 @@ class MayoRandomPatchDataset(Dataset):
             # random horizontal flip
             if random.random() >= 0.5:
                 img = np.flip(img, 1)
+            if random.random() >= 0.5:
+                img = np.flip(img, 0)
             # random crop image
-            x = random.randint(0, 288)
-            y = random.randint(0, 288)
-            img = img[x: x+224, y: y+224]
-            img = torch.from_numpy(img.copy())
-            img = rearrange(img, 'h w c -> c h w')
-        else:
-            patches = []
-            # random crop image
-            for i in range(5):
-                patch = img.copy()
-                x = random.randint(0, 288)
-                y = random.randint(0, 288)
-                patch = patch[x: x+224, y: y+224]
-                patch = torch.from_numpy(patch.copy())
-                patch = rearrange(patch, 'h w c -> c h w')
-                patches.append(patch)
-            img = tuple(patches)
+            # x = random.randint(0, 480)
+            # y = random.randint(0, 480)
+            # img = img[x: x+32, y: y+32]
+            # img = torch.from_numpy(img.copy())
+            # img = rearrange(img, 'h w c -> c h w')
+        # else:
+        patches = []
+        # random crop image
+        for i in range(32):
+            patch = img.copy()
+            x = random.randint(0, 480)
+            y = random.randint(0, 480)
+            patch = patch[x: x+32, y: y+32]
+            patch = torch.from_numpy(patch.copy())
+            patch = rearrange(patch, 'h w c -> c h w')
+            patches.append(patch)
+        img = tuple(patches)
 
-        if self.norm == True:
-            img = transformer(img)
+        # if self.norm == True:
+        #     img = transformer(img)
 
-        return img, mean
+        return img, mean, imgname
 
 class MayoRandomPatchDataset2(Dataset):
     def __init__(self, file_list, csv_dir, transform='train', norm=False):
@@ -339,7 +469,7 @@ class MayoRandomPatchDataset2(Dataset):
         if self.norm == True:
             img = transformer(img)
 
-        return img, mean
+        return img, mean, imgname
 
 
 class MayoPatchDataset(Dataset):

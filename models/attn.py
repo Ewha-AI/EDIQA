@@ -30,7 +30,8 @@ class Attention(nn.Module):
         elif padding:
             dim = [96, 192, 384, 768]
         else:
-            dim = [192, 384, 768, 768]
+            dim = [192, 384, 768, 1536] 
+            # dim = [192*2, 384*2, 768*2, 768*2]
         self.shared_dense_layer = nn.ModuleList()
 
         if multi_feature == False:
@@ -47,6 +48,7 @@ class Attention(nn.Module):
 
         outputs = []
         for i in range(len(x)):
+            # print('shape of x: ', x[i].size())
             b, l, h, w = x[i].size() # [32, 1536, 7, 7]
 
             avg_pool_channel = self.gap(x[i])
@@ -68,7 +70,10 @@ class Attention(nn.Module):
             spatial_weights = self.conv_layer(spatial_weights)
             spatial_weights = torch.cat([spatial_weights,] * l, dim=1)
 
-            out = torch.mul(torch.mul(channel_weights, x[i]), spatial_weights)
+            out = torch.mul(torch.mul(channel_weights, x[i]), spatial_weights) # test_1 (both)
+            # print('shape of attn: ', out.size())
+            # out = torch.mul(spatial_weights, x[i]) # test_2 (spatial)
+            # out = torch.mul(channel_weights, x[i]) # test_3 (channel)
             outputs.append(out)
         #     print(out.shape)
         # exit()

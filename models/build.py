@@ -9,10 +9,18 @@ from .fusion import Fusionmodule as Fusion
 from .mixer import MLPMixer
 from .token_swin_transformer import MultiSwinTransformer as TokenSwin
 from .og_swin_backbone import MultiSwinTransformer as OGBackbone
-from .og_pswin_backbone import MultiSwinTransformer as OGPBackbone
+# from .og_pswin_backbone import MultiSwinTransformer as OGPBackbone
 from .convnext import ConvNeXt
 from .fusion_backbone import SwinConvConcat
+from .fusion_backbone_512 import SwinConvConcat as SwinConv512
+from .final_model_swin import SwinConvConcat as SwinConv512_swin
+from .final_model_conv import SwinConvConcat as SwinConv512_conv
 from .fusion_bmm import SwinConvBmm
+from .ViT import ViT
+from .tres import Net as TReS
+from .maniqa import MANIQA
+from .wadiqam import WaDIQaM_Model
+from .cahdc import caHDCModel
 
 import torch
 import torch.nn as nn
@@ -114,12 +122,46 @@ def build_model(config):
     elif model_type == 'swin_conv_concat':
         model = nn.Sequential(SwinConvConcat())
 
+    elif model_type == 'swin_conv_512':
+        model = nn.Sequential(SwinConv512())
+
+    elif model_type == 'final_swin':
+        model = nn.Sequential(SwinConv512_swin())
+
+    elif model_type == 'final_conv':
+        model = nn.Sequential(SwinConv512_conv())
+
     elif model_type == 'swin_conv_bmm':
         model = nn.Sequential(SwinConvBmm())
 
 
     elif model_type == 'og':
         model = SwinTModified()
+
+    elif model_type == 'triq':
+        model = ViT(
+            image_size = 512,
+            patch_size = 32,
+            num_classes=1,
+            dim = 32,
+            depth = 2, # encoder depth
+            heads = 8,
+            mlp_dim = 64,
+            dropout = 0.1,
+            emb_dropout = 0.1
+        )
+
+    elif model_type == 'tres':
+        model = TReS(device='cuda')
+
+    elif model_type == 'maniqa':
+        model = MANIQA(embed_dim=768)
+
+    elif model_type == 'wadiqam':
+        model = WaDIQaM_Model()
+
+    elif model_type == 'cahdc':
+        model = caHDCModel()
 
     else:
         raise NotImplementedError(f"Unkown model: {model_type}")

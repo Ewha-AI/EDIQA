@@ -1,0 +1,153 @@
+"""
+Blind Image Quality Assessment Using A Deep Bilinear Convolutional Neural Network.
+https://github.com/zwx8981/DBCNN-PyTorch
+"""
+import os, datetime
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+
+class DBCNNModel(nn.Module):
+    def __init__(self, opt):
+        """Declare all needed layers."""
+        # super(DBCNNModel, self).__init__()
+
+        self.fr = opt.fr
+        self.ref_method = opt.ref_method
+        self.n_channels = opt.n_channels
+
+        # Create model
+        self.features1 = create_vgg19(opt.feature_layer).to(opt.device)
+        
+        scnn = SCNN(opt).to(opt.device)
+        # scnn_path = r'../../data/iqa/checkpoints-iqa/dbcnn/scnn.pkl'
+        scnn_path = r'../../data/iqa/checkpoints-iqa/dbcnn/scnn1.pkl'
+        state_dict_net = torch.load(scnn_path)
+        # print(state_dict_net)
+
+        # scnn = torch.nn.DataParallel(scnn).to(opt.device)
+        # print(scnn)
+        scnn.load_state_dict(state_dict_net)
+        # torch.save(scnn.module.state_dict(), r'../../data/iqa/checkpoints-iqa/dbcnn/scnn1.pkl')
+        # print(scnn)
+        self.features2 = scnn.features
+
+
+
+        print("Freeze all previous layers")
+        # Freeze all previous layers.
+        for param in self.features1.parameters():
+            param.requires_grad = False
+        for param in self.features2.parameters():
+            param.requires_grad = False
+
+
+        # Linear classifier.
+        self.fc = torch.nn.Linear(512*128, 1)
+
+        # Initialize the fc layers.
+        nn.init.kaiming_normal_(self.fc.weight.data)
+        if self.fc.bias is not None:
+            nn.init.constant_(self.fc.bias.data, val=0)
+
+    def forward(self, x):
+        """Forward pass of the network.
+        """
+        n = x.size()[0]
+
+        if self.fr and self.ref_method == 'concat':
+            x1 = x[:, :self.n_channels]
+        else:
+            x1 = x
+        x1 = self.features1(x1)
+
+        h1 = x1.size()[2]
+        w1 = x1.size()[3]
+        assert x1.size()[1] == 512
+
+        x2 = self.features2(x)
+
+        h2 = x2.size()[2]
+        w2 = x2.size()[3]
+        assert x2.size()[1] == 128
+        
+        if (h1 > h2) | (w1 > w2):
+            x2 = F.upsample_bilinear(x2, (h1,w1))
+        elif (h1 < h2) | (w1 < w2):
+            k = h2 - h1 + 1
+            x2 = F.avg_pool2d(x2, kernel_size=k, stride=1)
+
+        x1 = x1.view(n, 512, h1*w1)
+        x2 = x2.view(n, 128, h1*w1)  
+
+        x = torch.bmm(x1, torch.transpose(x2, 1, 2)) / (h1*w1)  # Bilinear
+
+        assert x.size() == (n, 512, 128)
+        x = x.view(n, 512*128)
+        # X = torch.sqrt(X + 1e-8) #Problem solved : erase this line
+        x = torch.nn.functional.normalize(x) #Here X goes nan....
+        x = self.fc(x)
+        
+        assert x.size() == (n, 1)
+        # self.out = x
+        return x
+
+
+class SCNN(nn.Module):
+    def __init__(self, opt):
+        """Declare all needed layers."""
+        super(SCNN, self).__init__()
+        self.num_class = 39
+        self.nc = opt.n_channels
+
+        self.features = nn.Sequential(
+            nn.Conv2d(self.nc, 48, 3, 1, 1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.Conv2d(48, 48, 3, 2, 1), nn.BatchNorm2d(48), nn.ReLU(inplace=True),
+            nn.Conv2d(48, 64, 3, 1, 1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, 3, 2, 1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, 3, 1, 1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, 3, 2, 1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.Conv2d(64, 128, 3, 1, 1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, 3, 1, 1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, 3, 2, 1), nn.BatchNorm2d(128), nn.ReLU(inplace=True)
+        )
+        weight_init(self.features)
+        self.pooling = nn.AvgPool2d(14, 1)
+        self.projection = nn.Sequential(
+            nn.Conv2d(128, 256, 1, 1, 0), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, 1, 1, 0), nn.BatchNorm2d(256), nn.ReLU(inplace=True)
+        )
+        weight_init(self.projection)    
+        self.classifier = nn.Linear(256, self.num_class)
+        weight_init(self.classifier)
+
+    def forward(self, x):
+        n = x.size()[0]
+        # x = self.sub_mean(x)
+
+        # assert x.size() == (n, 3, 224, 224)
+        x = self.features(x)
+        # print('feature.shape:', x.shape)
+        # assert x.size() == (n, 128, 14, 14)
+        x = self.pooling(x)
+        # assert x.size() == (n, 128, 1, 1)
+        x = self.projection(x)
+        # print('x.shape:', x.shape)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        # assert x.size() == (n, self.num_class)
+        return x
+
+def weight_init(net): 
+    for m in net.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight.data,nonlinearity='relu')
+            m.bias.data.zero_()
+        elif isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m.weight.data,nonlinearity='relu')
+            m.bias.data.zero_()
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()

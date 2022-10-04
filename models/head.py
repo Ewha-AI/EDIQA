@@ -148,7 +148,9 @@ class AvgPoolRegression(nn.Module):
                                       nn.Linear(512, 1))
 
         else:
-            self.head = nn.Sequential(nn.Linear(2112, 1024),
+            # self.head = nn.Sequential(nn.Linear(2112, 1024),
+            # self.head = nn.Sequential(nn.Linear(4224, 1024),
+            self.head = nn.Sequential(nn.Linear(2880, 1024),
                                     nn.GELU(),
                                     nn.Linear(1024, 1))
 

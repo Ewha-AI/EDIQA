@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from utils import seed_everything, get_distribution, distribution_to_score, calculate_plcc, CosineAnnealingWarmUpRestarts
 from models.build import build_model
-from dataset import PhantomTIQAData
+from dataset import ABIDEIITIQAData
 from glob import glob
 import pandas as pd
 from tqdm import tqdm
@@ -78,15 +78,44 @@ seed = 42
 seed_everything(seed)
 
 # load label
-label_dir = '../../data/csv/phantom_label.csv'
-test_label_dir = '../../data/csv/phantom_test_label.csv'
+label_dir = '../../data/ABIDEII-GU_3ch/ABIDEII.csv'
+
+# divide train/val/test by subject ids
+total_ids = os.listdir('../../data/ABIDEII-GU_3ch/')
+val_ids = ['28741']
+test_ids = ['28746', '28750', '28754', '28764', '28768', '28780', '28789', '28792', 
+            '28796', '28810', '28830', '28847']
+train_ids = [ids for ids in total_ids if ids not in val_ids]
+train_ids = [ids for ids in train_ids if ids not in test_ids]
+# print(len(total_ids), len(train_ids) + len(val_ids) + len(test_ids))
+assert len(total_ids) == len(train_ids) + len(val_ids) + len(test_ids)
 
 # load data
-data = sorted(glob('../../data/phantom_train_test_new/train/phantom/ge/chest/*/*.tiff'))
-random.shuffle(data)
-train_list = data[:int(len(data)*0.9)]
-val_list = data[int(len(data)*0.9):]
-test_list = sorted(glob('../../data/phantom_train_test_new/test/phantom/ge/chest/*/*.tiff'))
+data = sorted(glob('../../data/ABIDEII-GU_3ch/*/*.tiff'))
+temp_train_list = []
+for pid in train_ids:
+    temp_train_list.append(glob('../../data/ABIDEII-GU_3ch/{}/*.tiff'.format(pid)))
+temp_val_list = []
+for pid in val_ids:
+    temp_val_list.append(glob('../../data/ABIDEII-GU_3ch/{}/*.tiff'.format(pid)))
+temp_test_list = []
+for pid in test_ids:
+    temp_test_list.append(glob('../../data/ABIDEII-GU_3ch/{}/*.tiff'.format(pid)))
+
+train_list, val_list, test_list = [], [], []
+for i in range(len(temp_train_list)):
+    train_list += temp_train_list[i]
+for i in range(len(temp_val_list)):
+    val_list += temp_val_list[i]
+for i in range(len(temp_test_list)):
+    test_list += temp_test_list[i]
+train_list = sorted(train_list)
+val_list = sorted(val_list)
+test_list = sorted(test_list)
+assert len(data) == len(train_list) + len(val_list) + len(test_list)
+# print(len(data), len(train_list) + len(val_list) + len(test_list))
+# exit()
+
 
 
 print('================================')
@@ -97,9 +126,6 @@ print('    Validation: ', len(val_list))
 print('    Test: ', len(test_list))
 print('================================')
 
-# print([im.split('/')[-1] for im in train_list if im.split('/')[-1] not in temp_test])
-
-assert len(train_list) + len(val_list) + len(test_list) == len(set([im.split('/')[-1] for im in train_list] + [im.split('/')[-1] for im in val_list] + [im.split('/')[-1] for im in test_list]))
 
 # create work dirs
 work_dir = './work_dirs/{}/'.format(args.work_dirs)
@@ -108,16 +134,17 @@ if os.path.isdir(work_dir) != True:
 
 # save train setup
 with open(work_dir+'setup.txt', "a") as log:
-    log_line = 'args:{}\ntrain_imgs:{}\nval_imgs:{}\ntest_imgs:{}'.format(args, len(train_list), len(val_list), len(test_list))
+    log_line = 'args:{}\ntrain_pid:{}\nval_pid:{}\ntest_pid:{}\ntrain_imgs:{}\nval_imgs:{}\ntest_imgs:{}'.format(args, train_ids, val_ids, test_ids,
+                                                                                                                 len(train_list), len(val_list), len(test_list))
     log.write(log_line)
 
 
 # load datasets
-train_data = PhantomTIQAData(train_list, label_dir, transform='train', norm=False)
+train_data = ABIDEIITIQAData(train_list, label_dir, transform='train', norm=False)
 train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=True, num_workers=4)
-val_data = PhantomTIQAData(val_list, label_dir, transform='val', norm=False)
+val_data = ABIDEIITIQAData(val_list, label_dir, transform='val', norm=False)
 val_loader = DataLoader(dataset = val_data, batch_size=batch_size, shuffle=False, num_workers=4)
-test_data = PhantomTIQAData(test_list, test_label_dir, transform='test', norm=False)
+test_data = ABIDEIITIQAData(test_list, label_dir, transform='test', norm=False)
 test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False, num_workers=4)
 
 # set model

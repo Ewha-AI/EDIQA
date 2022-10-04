@@ -14,11 +14,11 @@ class SwinConvConcat(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.swin_transformer = OGBackbone()
+        self.swin_transformer = MultiPSwinTransformer()
         self.convnext = ConvNeXt() 
         self.attn = Attention(multi_feature=True, fpn=True, dim=512)
         # self.attn = Attention(multi_feature=True, fpn=False, dim=256)
-        self.fpn = FPN(in_channels=[192, 384, 768, 768],
+        self.fpn = FPN(in_channels=[96, 192, 384, 768],
                        out_channels=256, # 256
                        num_outs=4)
         self.head = AvgPoolRegression(fpn=True, dim=512, feature_num=4) # 512
@@ -26,19 +26,24 @@ class SwinConvConcat(nn.Module):
 
         dims = [96, 192, 384, 768]
 
-        self.downscale_layers = nn.ModuleList()
-        for i in range(3):
-            self.downscale_layers.append(nn.Conv2d(dims[i], dims[i] * 2, 2, 2))
+        # self.downscale_layers = nn.ModuleList()
+        # for i in range(3):
+        #     self.downscale_layers.append(nn.Conv2d(dims[i], dims[i] * 2, 2, 2))
 
     def forward(self, x):
         features = []
         swin_features = list(self.swin_transformer(x))
         conv_features = list(self.convnext(x))
 
-        for i in range(4):
-            if i in range(3):
-                # downscale convnext features
-                conv_features[i] = self.downscale_layers[i](conv_features[i])
+        # for i in range(4):
+        #     print(i, 'Conv feature: ', conv_features[i].shape)
+        #     print(i, 'Swin0 feature: ', swin_features[i].shape)
+        # exit()
+
+        # for i in range(4):
+        #     if i in range(3):
+        #         # downscale convnext features
+        #         conv_features[i] = self.downscale_layers[i](conv_features[i])
             
             # # bmm 
             # b, c, w, h = conv_features[i].shape

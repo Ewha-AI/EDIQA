@@ -614,8 +614,8 @@ class MultiPSwinTransformer(nn.Module):
             x = x.flatten(2).transpose(1, 2)
         x = self.pos_drop(x)
 
-        # outs = []
-        score = 0.
+        outs = []
+        # score = 0.
         for i in range(self.num_layers):
             layer = self.layers[i]
             x_out, H, W, x, Wh, Ww = layer(x, Wh, Ww)
@@ -623,18 +623,20 @@ class MultiPSwinTransformer(nn.Module):
             if i in self.out_indices:
                 norm_layer = getattr(self, f'norm{i}')
                 x_out = norm_layer(x_out)
-                x_out = self.avgpool(x_out.transpose(1, 2))
-                x_out = torch.flatten(x_out, 1)
-                head_layer = getattr(self, f'head{i}')
-                x_out = head_layer(x_out)
-                score += x_out
-                # out = x_out.view(-1, H, W, self.num_features[i]).permute(0, 3, 1, 2).contiguous()
+                # x_out = self.avgpool(x_out.transpose(1, 2))
+                # x_out = torch.flatten(x_out, 1)
+                # head_layer = getattr(self, f'head{i}')
+                # x_out = head_layer(x_out)
+                # score += x_out
+                out = x_out.view(-1, H, W, self.num_features[i]).permute(0, 3, 1, 2).contiguous()
                 # print(out.shape)
-                # outs.append(out)
+                # exit()
+                outs.append(out)
+        # exit()
 
-        # return tuple(outs)
-        score = score / 4
-        return score
+        return tuple(outs)
+        # score = score / 4
+        # return score
 
     def train(self, mode=True):
         """Convert the model into training mode while keep layers freezed."""

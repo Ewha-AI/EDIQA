@@ -7,3 +7,6 @@ cat.jpg
 test*.png
 *.txt
 *.png
+results/*
+*.csv
+timm/*
