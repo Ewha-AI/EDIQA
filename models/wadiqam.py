@@ -68,6 +68,8 @@ class WaDIQaM_Model(nn.Module):
         :param data: distorted and reference patches of images
         :return: quality of images/patches
         """
+
+        # single patch
         batch_size = x[0].size(0) # x.size(0)
         n_patches = len(x) # x.size(1)
 

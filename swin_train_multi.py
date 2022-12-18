@@ -297,11 +297,10 @@ else:
 
 for epoch in range(start_epoch, epochs):
     epoch_loss = 0
-    epoch_plcc = 0
 
     model.train()
     trainloader = tqdm(train_loader, desc='train')
-    # total_output, total_mean = [], []
+    total_output, total_mean = [], []
     for i, (data, mean) in enumerate(trainloader):
         # for i in range(len(data)):
         #     data[i] = data[i].cuda()
@@ -312,21 +311,18 @@ for epoch in range(start_epoch, epochs):
         # mean = rearrange(mean, 'b -> b 1')
         output = rearrange(output, 'b 1 -> b')
 
-        # total_output = total_output + output.detach().cpu().tolist()
-        # total_mean = total_mean + mean.detach().cpu().tolist()
+        total_output = total_output + output.detach().cpu().tolist()
+        total_mean = total_mean + mean.detach().cpu().tolist()
 
         loss = criterion(output, mean)
         epoch_loss += loss
-        epoch_plcc += calculate_plcc(output, mean)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-    # plcc = pearsonr(total_output, total_mean)[0]
-    # srocc = spearmanr(total_output, total_mean)[0]
-    plcc = epoch_plcc / len(train_loader)
-    srocc = 0
+    plcc = pearsonr(total_output, total_mean)[0]
+    srocc = spearmanr(total_output, total_mean)[0]
     epoch_loss = epoch_loss / len(train_loader)
 
     # print PLCC and loss every epoch
@@ -336,8 +332,8 @@ for epoch in range(start_epoch, epochs):
     # validation
     model.eval()
     with torch.no_grad():
-        # total_val_output, total_mean = [], []
-        epoch_val_plcc = 0
+        total_val_output, total_mean = [], []
+        # epoch_val_plcc = 0
         epoch_val_loss = 0
         for data, mean in tqdm(val_loader, desc='validation'):
             for i in range(len(data)):
@@ -356,55 +352,51 @@ for epoch in range(start_epoch, epochs):
             val_output = rearrange(val_output, 'b 1 -> b')
             val_loss = criterion(val_output, mean)
             epoch_val_loss += val_loss
-            epoch_val_plcc += calculate_plcc(val_output, mean)
 
             # epoch_val_loss += val_loss / len(val_loader)
 
-            # total_val_output += val_output.detach().cpu().tolist()
-            # total_mean += mean.detach().cpu().tolist()
+            total_val_output += val_output.detach().cpu().tolist()
+            total_mean += mean.detach().cpu().tolist()
 
-        # val_plcc = pearsonr(total_val_output, total_mean)[0]
-        # val_srocc = spearmanr(total_val_output, total_mean)[0]
-        val_plcc = epoch_val_plcc / len(val_loader)
-        val_srocc = 0
+        val_plcc = pearsonr(total_val_output, total_mean)[0]
+        val_srocc = spearmanr(total_val_output, total_mean)[0]
+        # epoch_val_plcc += val_plcc / len(val_loader)
         epoch_val_loss = epoch_val_loss / len(val_loader)
 
     # test
-    # model.eval()
-    # with torch.no_grad():
-    #     # epoch_test_plcc = 0
-    #     total_test_output, total_mean = [], []
-    #     for data, mean in tqdm(test_loader, desc='test'):
-    #         # for i in range(len(data)):
-    #         #     data[i] = data[i].cuda()
-    #         data = data.cuda()
-    #         mean = mean.cuda()
-    #         # mean = rearrange(mean, 'b -> b 1')
+    model.eval()
+    with torch.no_grad():
+        # epoch_test_plcc = 0
+        total_test_output, total_mean = [], []
+        for data, mean in tqdm(test_loader, desc='test'):
+            # for i in range(len(data)):
+            #     data[i] = data[i].cuda()
+            data = data.cuda()
+            mean = mean.cuda()
+            # mean = rearrange(mean, 'b -> b 1')
 
-    #         # test_output = model(data)
-    #         # test_output = 0
-    #         # for im in data:
-    #         #     test_output += model(im.cuda())
-    #         # test_output = test_output / len(data)
-    #         test_output = model(data)
-    #         test_output = rearrange(test_output, 'b 1 -> b')
+            # test_output = model(data)
+            # test_output = 0
+            # for im in data:
+            #     test_output += model(im.cuda())
+            # test_output = test_output / len(data)
+            test_output = model(data)
+            test_output = rearrange(test_output, 'b 1 -> b')
 
-    #         # test_plcc = calculate_plcc(test_output, mean)
-    #         # epoch_test_plcc += test_plcc / len(test_loader)
+            # test_plcc = calculate_plcc(test_output, mean)
+            # epoch_test_plcc += test_plcc / len(test_loader)
 
-    #         total_test_output += test_output.detach().cpu().tolist()
-    #         total_mean += mean.detach().cpu().tolist()
+            total_test_output += test_output.detach().cpu().tolist()
+            total_mean += mean.detach().cpu().tolist()
 
-    #     test_plcc = pearsonr(total_test_output, total_mean)[0]
-    #     test_srocc = spearmanr(total_test_output, total_mean)[0]
-
-    test_plcc, test_srocc = 0, 0
+        test_plcc = pearsonr(total_test_output, total_mean)[0]
+        test_srocc = spearmanr(total_test_output, total_mean)[0]
 
 
     # save best srocc model
-    # if val_srocc >= best_plcc:
-    #     best_plcc = val_srocc
-    #     torch.save(model.state_dict(), work_dir+'best_srocc.pth'.format(epoch+1))
+    if val_srocc >= best_plcc:
+        best_plcc = val_srocc
+        torch.save(model.state_dict(), work_dir+'best_srocc.pth'.format(epoch+1))
         # best_epoch = epoch+1
 
     # save best loss model

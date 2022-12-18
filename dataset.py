@@ -168,7 +168,7 @@ class ABIDEIITIQAData(Dataset):
             # img = transformer(img)
             pass
 
-        return img, mean, imgname
+        return img, mean #, imgname
 
 
 class PhantomData(Dataset):
@@ -289,20 +289,44 @@ class MayoDataset(Dataset):
 
         # transform image
         if self.transform == 'train':
+            # resize
             # img = cv2.resize(img, (224, 224))
+
             # center crop
             # img = img[144: 144+224, 144: 144+224]
+
             # random crop
             # x = random.randint(100, 189)
             # y = random.randint(100, 189)
+
             # for cahdc
             # x = random.randint(0, 212)
             # y = random.randint(0, 212)
             # img = img[x: x+300, y: y+300]
+
             # for maniqa
-            # x = random.randint(0, 512-224)
-            # y = random.randint(0, 512-224)
+            # x = random.randint(0, 512-224-1)
+            # y = random.randint(0, 512-224-1)
             # img = img[x: x+224, y: y+224]
+
+            # w multipatch (WaDIQaM, maniQa)
+            # imgs = []
+            # ps = 20
+            # for i in range(ps): # 32, 20
+            #     x = random.randint(0, 512-ps-1)
+            #     y = random.randint(0, 512-ps-1)
+            #     patch = img[x:x+ps, y:y+ps]
+
+            #     if random.random() >= 0.5:
+            #         patch = np.flip(patch, 1)
+
+            #     patch = torch.from_numpy(patch.copy())
+            #     patch = rearrange(patch, 'h w c -> c h w')
+            #     imgs.append(patch)
+
+            # img = tuple(imgs)
+
+            # default
             if random.random() >= 0.5:
                 img = np.flip(img, 1)
             if random.random() >= 0.5:
@@ -310,30 +334,40 @@ class MayoDataset(Dataset):
             img = torch.from_numpy(img.copy())
             img = rearrange(img, 'h w c -> c h w')
         else:
+            # resize
             # img = cv2.resize(img, (224, 224))
-            # img = img[int(512/2)-150: int(512/2)+150, int(512/2)-150: int(512/2)+150] # cahdc
-            # img = img[int(512/2)-112: int(512/2)+112, int(512/2)-112: int(512/2)+112] # maniqa
-            img = torch.from_numpy(img.copy())
-            img = rearrange(img, 'h w c -> c h w')
+
             # center crop
             # img = img[144: 144+224, 144: 144+224]
-            # img = torch.from_numpy(img.copy())
-            # img = rearrange(img, 'h w c -> c h w')
+
+            # cahdc
+            # img = img[int(512/2)-150: int(512/2)+150, int(512/2)-150: int(512/2)+150] # cahdc
+            
+            # maniqa
+            # img = img[int(512/2)-112: int(512/2)+112, int(512/2)-112: int(512/2)+112] # maniqa
+            
+            # default
+            img = torch.from_numpy(img.copy())
+            img = rearrange(img, 'h w c -> c h w')
+            
+            # test w multiple patches
             # imgs = []
-            # for i in range(5):
-            #     x = random.randint(0, 288)
-            #     y = random.randint(0, 288)
-            #     patch = img[x: x+224, y: y+224]
+            # ps = 20
+            # for i in range(ps):
+            #     x = random.randint(0, 512-ps-1)
+            #     y = random.randint(0, 512-ps-1)
+            #     patch = img[x:x+ps, y:y+ps]
+
+            #     if random.random() >= 0.5:
+            #         patch = np.flip(patch, 1)
+
             #     patch = torch.from_numpy(patch.copy())
             #     patch = rearrange(patch, 'h w c -> c h w')
             #     imgs.append(patch)
+
             # img = tuple(imgs)
 
-        if self.norm == True:
-            # img = transformer(img)
-            pass
-
-        return img, mean, imgname
+        return img, mean#, imgname
 
 
 class MayoRandomPatchDataset(Dataset): # wadiqam

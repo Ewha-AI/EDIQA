@@ -53,8 +53,8 @@ model.load_state_dict(checkpoint, strict=True)
 if args.data_type == 'mayo':
     label_dir = '../../data/nimg-test-3channel/mayo_test.csv'
     test_list = sorted(glob('../../data/nimg-test-3channel/*/*/*.tiff')) # L506 & L067
-    # test_data = MayoDataset(test_list, label_dir, transform='val', norm=args.norm)
-    test_data = MayoRandomPatchDataset(test_list, label_dir, transform='val', norm=args.norm)
+    test_data = MayoDataset(test_list, label_dir, transform='val', norm=args.norm)
+    # test_data = MayoRandomPatchDataset(test_list, label_dir, transform='val', norm=args.norm)
     test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False)
 
     # test rads
@@ -63,9 +63,9 @@ if args.data_type == 'mayo':
         test_output, gt = [], []
         with torch.no_grad():
             for data, mean, imgname in tqdm(test_loader, desc='test'):
-                # data = data.cuda()
-                for i in range(len(data)):
-                    data[i] = data[i].cuda()
+                data = data.cuda()
+                # for i in range(len(data)):
+                #     data[i] = data[i].cuda()
                 mean = mean.cuda()
                 mean = rearrange(mean, 'b -> b 1')
 
@@ -90,8 +90,8 @@ if args.data_type == 'mayo':
     for i in range(len(temp_test_list)):
         test_list += temp_test_list[i]
 
-    # test_data = MayoDataset(test_list, label_dir, transform='val', norm=args.norm)
-    test_data = MayoRandomPatchDataset(test_list, label_dir, transform='val', norm=args.norm)
+    test_data = MayoDataset(test_list, label_dir, transform='val', norm=args.norm)
+    # test_data = MayoRandomPatchDataset(test_list, label_dir, transform='val', norm=args.norm)
     test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=False)
 
 elif args.data_type == 'phantom':
@@ -122,9 +122,11 @@ with open('results/{}_d2iqa_{}.csv'.format(args.work_dirs, args.data_type), "a")
     with torch.no_grad():
         for data, mean, imgname in tqdm(test_loader, desc='test'):
             # print(imgname)
-            # data = data.cuda()
-            for i in range(len(data)):
-                data[i] = data[i].cuda()
+            data = data.cuda()
+            # print(data)
+            # exit()
+            # for i in range(len(data)):
+            #     data[i] = data[i].cuda()
             mean = mean.cuda()
             mean = rearrange(mean, 'b -> b 1')
 

@@ -16,13 +16,13 @@ class SwinConvConcat(nn.Module):
 
         self.swin_transformer = MultiPSwinTransformer()
         self.convnext = ConvNeXt() 
-        self.attn = Attention(multi_feature=True, fpn=True, dim=512)
+        # self.attn = Attention(multi_feature=True, fpn=True, dim=512)
         # self.attn = Attention(multi_feature=True, fpn=False, dim=256)
-        self.fpn = FPN(in_channels=[96, 192, 384, 768],
-                       out_channels=256, # 256
-                       num_outs=4)
-        self.head = AvgPoolRegression(fpn=True, dim=512, feature_num=4) # 512
-        # self.head = AvgPoolRegression(fpn=False, dim=512, feature_num=4) # 512
+        # self.fpn = FPN(in_channels=[96, 192, 384, 768],
+        #                out_channels=256, # 256
+        #                num_outs=4)
+        # self.head = AvgPoolRegression(fpn=True, dim=512, feature_num=4) # 512
+        self.head = AvgPoolRegression(fpn=False, dim=512, feature_num=4) # 512
 
         dims = [96, 192, 384, 768]
 
@@ -58,8 +58,8 @@ class SwinConvConcat(nn.Module):
         # return tuple(features)
 
         # fpn network
-        swin_features = self.fpn(swin_features)
-        conv_features = self.fpn(conv_features)
+        # swin_features = self.fpn(swin_features)
+        # conv_features = self.fpn(conv_features)
 
         # concat features
         features = []
@@ -68,14 +68,14 @@ class SwinConvConcat(nn.Module):
             # print(features[i].shape)
 
         # attention
-        x = self.attn(features)
-
+        # x = self.attn(features)
+#
         # head
         # for i in range(4):
         #     print(features[i].shape)
         # exit()
-        x = self.head(x)
-        # x = self.head(features)
+        # x = self.head(x)
+        x = self.head(features)
 
 
         # print()

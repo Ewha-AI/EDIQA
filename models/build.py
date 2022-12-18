@@ -17,7 +17,7 @@ from .final_model_swin import SwinConvConcat as SwinConv512_swin
 from .final_model_conv import SwinConvConcat as SwinConv512_conv
 from .fusion_bmm import SwinConvBmm
 from .ViT import ViT
-from .tres import Net as TReS
+# from .tres import Net as TReS
 from .maniqa import MANIQA
 from .wadiqam import WaDIQaM_Model
 from .cahdc import caHDCModel

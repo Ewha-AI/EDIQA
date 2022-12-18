@@ -78,11 +78,13 @@ seed = 42
 seed_everything(seed)
 
 # load label
-label_dir = '../../data/ABIDEII-GU_3ch/ABIDEII.csv'
+# label_dir = '../../data/ABIDEII-GU_3ch/d2iqa_lbset_ABIDEII_GU_0928_lbcenter_100.csv'
+label_dir = '../../data/ABIDEII-GU_3ch/d2iqa_lbset_ABIDEII_GU_0928_lb_100.csv'
 
 # divide train/val/test by subject ids
 total_ids = os.listdir('../../data/ABIDEII-GU_3ch/')
-val_ids = ['28741']
+# val_ids = ['28741'] # default
+val_ids = ['28741', '28742', '28743', '28744', '28745'] # temp: wiset
 test_ids = ['28746', '28750', '28754', '28764', '28768', '28780', '28789', '28792', 
             '28796', '28810', '28830', '28847']
 train_ids = [ids for ids in total_ids if ids not in val_ids]
@@ -90,7 +92,7 @@ train_ids = [ids for ids in train_ids if ids not in test_ids]
 # print(len(total_ids), len(train_ids) + len(val_ids) + len(test_ids))
 assert len(total_ids) == len(train_ids) + len(val_ids) + len(test_ids)
 
-# load data
+# load data (default)
 data = sorted(glob('../../data/ABIDEII-GU_3ch/*/*.tiff'))
 temp_train_list = []
 for pid in train_ids:
@@ -102,6 +104,24 @@ temp_test_list = []
 for pid in test_ids:
     temp_test_list.append(glob('../../data/ABIDEII-GU_3ch/{}/*.tiff'.format(pid)))
 
+# TEMP: WISET, TODO; erase
+imlist = sorted(pd.read_csv(label_dir)['title'])
+temp_train_list = []
+for pid in train_ids:
+    plist = [pim for pim in imlist if pid in pim]
+    for im in plist:
+        temp_train_list.append(glob('../../data/ABIDEII-GU_3ch/{}/{}.tiff'.format(pid, im.split('_')[-1])))
+temp_val_list = []
+for pid in val_ids:
+    plist = [pim for pim in imlist if pid in pim]
+    for im in plist:
+        temp_val_list.append(glob('../../data/ABIDEII-GU_3ch/{}/{}.tiff'.format(pid, im.split('_')[-1])))
+temp_test_list = []
+for pid in test_ids:
+    plist = [pim for pim in imlist if pid in pim]
+    for im in plist:
+        temp_test_list.append(glob('../../data/ABIDEII-GU_3ch/{}/{}.tiff'.format(pid, im.split('_')[-1])))
+
 train_list, val_list, test_list = [], [], []
 for i in range(len(temp_train_list)):
     train_list += temp_train_list[i]
@@ -112,7 +132,8 @@ for i in range(len(temp_test_list)):
 train_list = sorted(train_list)
 val_list = sorted(val_list)
 test_list = sorted(test_list)
-assert len(data) == len(train_list) + len(val_list) + len(test_list)
+# assert len(data) == len(train_list) + len(val_list) + len(test_list) # default
+assert 7473 == len(train_list) + len(val_list) + len(test_list)
 # print(len(data), len(train_list) + len(val_list) + len(test_list))
 # exit()
 
