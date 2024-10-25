@@ -12,7 +12,7 @@ This repo contains the supported code and configuration files to reproduce image
 
 | Model | Swin transformer backbone | Convnext backbone |
 | :---: | :---: | :---: |
-| [EDIQA](https://drive.google.com/file/d/1eQfFzyNbu7W0z6E9iYucMo13t7Px6Td4/view?usp=sharing) | [model](https://drive.google.com/file/d/1wK6km6t5nXO4rG_jaUg0Oyh5U2fLfPk9/view?usp=drive_link)/[config]() | [model](https://drive.google.com/file/d/1tmdTb5-dRsUVwKsKDitpGmZMZec1wp5I/view?usp=drive_link)/[config]() |
+| [EDIQA](https://drive.google.com/file/d/1eQfFzyNbu7W0z6E9iYucMo13t7Px6Td4/view?usp=sharing) | [model](https://drive.google.com/file/d/1wK6km6t5nXO4rG_jaUg0Oyh5U2fLfPk9/view?usp=drive_link)/[config](https://github.com/Ewha-AI/EDIQA/blob/main/work_dirs/detection_weights/mayo/swin.py) | [model](https://drive.google.com/file/d/1tmdTb5-dRsUVwKsKDitpGmZMZec1wp5I/view?usp=drive_link)/[config](https://github.com/Ewha-AI/EDIQA/blob/main/work_dirs/detection_weights/mayo/conv.py) |
 
 **Notes**:
 
