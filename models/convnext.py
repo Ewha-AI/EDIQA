@@ -1,9 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-
+#
 # All rights reserved.
-
+#
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+#
+# Modifications made by Wonkyeong Lee
 
 
 from functools import partial
@@ -70,6 +72,7 @@ class ConvNeXt(nn.Module):
     """
     def __init__(self, in_chans=3, depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], 
                  drop_path_rate=0., layer_scale_init_value=1e-6, out_indices=[0, 1, 2, 3],
+                 data_type='mayo'
                  ):
         super().__init__()
 
@@ -79,10 +82,24 @@ class ConvNeXt(nn.Module):
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
         )
         self.downsample_layers.append(stem)
-        for i in range(3):
+        if data_type != 'mri':
+            for i in range(3): 
+                downsample_layer = nn.Sequential(
+                        LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                        nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+                )
+                self.downsample_layers.append(downsample_layer)
+        else:
+            for i in range(2):
+                downsample_layer = nn.Sequential(
+                        LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                        nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+                )
+                self.downsample_layers.append(downsample_layer)
             downsample_layer = nn.Sequential(
-                    LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
-                    nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+                    LayerNorm(dims[2], eps=1e-6, data_format="channels_first"),
+                    nn.Conv2d(dims[2], dims[3], kernel_size=2, stride=2, padding=(1,0)),
+                    nn.Conv2d(dims[3], dims[3], kernel_size=(2,1), stride=(1,1), padding=0), # padding=1,0?
             )
             self.downsample_layers.append(downsample_layer)
 
@@ -146,6 +163,7 @@ class ConvNeXt(nn.Module):
                 norm_layer = getattr(self, f'norm{i}')
                 x_out = norm_layer(x)
                 outs.append(x_out)
+                # print('conv', x_out.shape)
 
         return tuple(outs)
 

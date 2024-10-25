@@ -1,3 +1,10 @@
+# MIT License
+# Copyright (c) 2020 Junyong You
+# Source: <https://github.com/junyongyou/aihiqnet>
+# For full license text, see the LICENSE file in the project root.
+#
+# Modifications made by Wonkyeong Lee
+
 import torch
 import torch.nn as nn
 

@@ -1,12 +1,8 @@
 #git ignore file#
 
 work_dirs/*
+results/*
 __pycache__/*
 models/__pycache__/*
-cat.jpg
-test*.png
-*.txt
-*.png
-results/*
-*.csv
-timm/*
+work_dirs/*/*.pth
+work_dirs/detectopm_weights/*/*.pth
