@@ -2,6 +2,8 @@
 
 This repo contains the supported code and configuration files to reproduce image quality assessment results of [Efficient Deep-Detector Image Quality Assessment Based on Knowledge Distillation](doi.org/10.1109/TIM.2023.3346519). 
 
+![ediqa_figure](https://github.com/user-attachments/assets/6de20661-bf4a-4371-a281-cdff92fb9db3)
+
 ## Updates
 
 ***10/25/2024*** Initial commits
@@ -49,3 +51,14 @@ bash train.sh
 
 To generate D2IQA scores for EDIQA training, refer to this repo and create csv files with D2IQA scores for each image.<br>
 Then, run `make_label.py` to generate the final annotation file for EDIQA, adjusting `detect_path` and `save_dir` as needed.
+
+## Citing EDIQA
+```
+@article{lee2023efficient,
+  title={Efficient Deep-Detector Image Quality Assessment Based on Knowledge Distillation},
+  author={Lee, Wonkyeong and Gold, Garry Evan and Choi, Jang-Hwan},
+  journal={IEEE Transactions on Instrumentation and Measurement},
+  year={2023},
+  publisher={IEEE}
+}
+```

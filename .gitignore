@@ -1,8 +1,7 @@
 #git ignore file#
 
-work_dirs/*
 results/*
 __pycache__/*
 models/__pycache__/*
 work_dirs/*/*.pth
-work_dirs/detectopm_weights/*/*.pth
+work_dirs/detection_weights/*/*.pth
