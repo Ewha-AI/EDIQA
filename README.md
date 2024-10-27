@@ -49,8 +49,8 @@ bash train.sh
 
 ### Gererating D2IQA detection scores for EDIQA training
 
-To generate D2IQA scores for EDIQA training, refer to this repository for dataset generation and testing by running make_data.py and test.py. For mD2IQA, as described in the paper, use the [Swin Transformer repository](https://github.com/SwinTransformer/Swin-Transformer-Object-Detection) instead of the MMDetection repository. The trained Swin Transformer mD2IQA weights can be downloaded from the Swin Transformer backbone section in the [Models and pretrained backbone weights](#models-and-pretrained-backbone-weights) table.<br>
-Then, run `make_label.py` to generate the final annotation file for EDIQA, adjusting `detect_path` and `save_dir` as needed.
+To generate D2IQA scores for EDIQA training, refer to this [repo](https://github.com/Ewha-AI/D2IQA) for dataset generation and testing by running `make_data.py` and `test.py`. For mD2IQA, as described in the paper, use the [Swin Transformer repository](https://github.com/SwinTransformer/Swin-Transformer-Object-Detection) instead of the mmdetection repository. The trained Swin Transformer mD2IQA weights can be downloaded from the Swin Transformer backbone section in the [Models and pretrained backbone weights](#models-and-pretrained-backbone-weights) table.<br>
+Once the D2IQA scores are ready, run `make_label.py` to generate the final annotation file for EDIQA, adjusting `detect_path` and `save_dir` as needed.
 
 ## Citing EDIQA
 ```
