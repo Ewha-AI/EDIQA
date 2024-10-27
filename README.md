@@ -10,14 +10,14 @@ This repo contains the supported code and configuration files to reproduce image
 
 ## Models and pretrained backbone weights
 
-| Model | Swin transformer backbone | Convnext backbone |
+| Final model | Swin transformer backbone | Convnext backbone |
 | :---: | :---: | :---: |
 | [EDIQA](https://drive.google.com/file/d/1eQfFzyNbu7W0z6E9iYucMo13t7Px6Td4/view?usp=sharing) | [model](https://drive.google.com/file/d/1wK6km6t5nXO4rG_jaUg0Oyh5U2fLfPk9/view?usp=drive_link)/[config](https://github.com/Ewha-AI/EDIQA/blob/main/work_dirs/detection_weights/mayo/swin.py) | [model](https://drive.google.com/file/d/1tmdTb5-dRsUVwKsKDitpGmZMZec1wp5I/view?usp=drive_link)/[config](https://github.com/Ewha-AI/EDIQA/blob/main/work_dirs/detection_weights/mayo/conv.py) |
 
 **Notes**:
 
 - To train the model using pretrained backbone weights, download the pretrained models and place them in `work_dirs/detection_models/mayo`.
-- The pretrained models were trained using [Swin Transformer Object Detection](https://github.com/SwinTransformer/Swin-Transformer-Object-Detection).
+- The detectors were trained using [Swin Transformer Object Detection](https://github.com/SwinTransformer/Swin-Transformer-Object-Detection).
 
 ## Usage
 
@@ -49,7 +49,7 @@ bash train.sh
 
 ### Gererating D2IQA detection scores for EDIQA training
 
-To generate D2IQA scores for EDIQA training, refer to this [repo](https://github.com/Ewha-AI/D2IQA) and create csv files with D2IQA scores for each image.<br>
+To generate D2IQA scores for EDIQA training, refer to this [repo](https://github.com/Ewha-AI/D2IQA) and create csv files with D2IQA by running `test.py`<br>
 Then, run `make_label.py` to generate the final annotation file for EDIQA, adjusting `detect_path` and `save_dir` as needed.
 
 ## Citing EDIQA
