@@ -17,7 +17,7 @@ This repo contains the supported code and configuration files to reproduce image
 **Notes**:
 
 - To train the model using pretrained backbone weights, download the pretrained models and place them in `work_dirs/detection_models/mayo`.
-- The pretrained models were trained using [MMDetection](https://github.com/open-mmlab/mmdetection).
+- The pretrained models were trained using [Swin Transformer Object Detection](https://github.com/SwinTransformer/Swin-Transformer-Object-Detection).
 
 ## Usage
 
@@ -49,7 +49,7 @@ bash train.sh
 
 ### Gererating D2IQA detection scores for EDIQA training
 
-To generate D2IQA scores for EDIQA training, refer to this repo and create csv files with D2IQA scores for each image.<br>
+To generate D2IQA scores for EDIQA training, refer to this [repo](https://github.com/Ewha-AI/D2IQA) and create csv files with D2IQA scores for each image.<br>
 Then, run `make_label.py` to generate the final annotation file for EDIQA, adjusting `detect_path` and `save_dir` as needed.
 
 ## Citing EDIQA
